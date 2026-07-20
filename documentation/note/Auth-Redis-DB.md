@@ -129,6 +129,37 @@ tetap diterima sampai `exp`-nya lewat sendiri. Untuk menutup celah itu,
   `public function createInterceptors() returns http:Interceptor[] => [tokenDenylistInterceptor];`
   — Ballerina mendeteksinya secara structural typing.
 
+### 1.4.2 Cek keanggotaan grup portal (`swaportal_group_id`) — dari `userInfo`, bukan klaim access token
+
+`TokenDenylistInterceptor` yang sama juga memanggil
+`services:verifyAppGroupMembership(token)` untuk setiap request, sebelum
+`ctx.next()` diteruskan ke resource function.
+
+**Riwayat insiden (2026-07-20):** desain awal memvalidasi `swaportal_group_id`
+lewat pengecekan `scopeKey`/`scopes` deklaratif di `@http:ServiceConfig.auth`
+tiap service — Ballerina otomatis membaca klaim itu langsung dari **access
+token** yang dikirim (bukan id_token), lalu balas `403` bawaan Ballerina
+(bukan `ApiResponse` envelope) sebelum resource function jalan kalau klaim
+tidak cocok. Terbukti dari investigasi live: WSO2 IS **kadang tidak
+menyertakan** `swaportal_group_id`/`swaportal_role_id` ke access token saat
+penerbitan — user yang sama, login flow yang sama, satu kali dapat access
+token dengan klaim lengkap, kali berikutnya tanpa klaim sama sekali — padahal
+`idToken` dan `/oauth2/userinfo` untuk WSO2 IS user yang sama selalu
+konsisten membawanya. Akibatnya semua endpoint bisnis (37 dari 39 service di
+`main.bal` memakai blok `scopeKey`/`scopes` yang identik) bisa 403 acak tanpa
+sebab yang terlihat di sisi backend.
+
+Perbaikannya: blok `scopeKey`/`scopes` dihapus dari seluruh
+`@http:ServiceConfig.auth` (JWT tetap divalidasi signature/expiry/issuer/
+audience via `jwtValidatorConfig`, cuma bagian scope-nya yang dicabut), dan
+pengecekan grup dipindah ke `services:verifyAppGroupMembership` —
+memanggil `services:userInfo()` yang sama dipakai `resolveRoleId`
+(cache-aside Redis 60 detik, fallback live call ke WSO2 IS) — sehingga
+sumber datanya konsisten dengan yang sudah terbukti reliabel, bukan klaim
+mentah dari access token. Kegagalannya sekarang juga lewat `errorHttp`/
+`errorToResponse` biasa (`FORBIDDEN` 403 dalam `ApiResponse` envelope),
+bukan lagi respons bawaan Ballerina yang polos.
+
 ### 1.5 Model data auth
 
 Didefinisikan di [models.bal](../modules/models/models.bal):

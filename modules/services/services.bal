@@ -63,6 +63,27 @@ function hasAppGroup(map<json> claims) returns boolean {
     return false;
 }
 
+# Verifies portal membership from the (cached) live `userInfo` lookup rather than the access
+# token's own embedded claims. WSO2 IS has been observed to intermittently omit
+# `swaportal_group_id`/`swaportal_role_id` from the JWT access token at issuance — sometimes
+# present, sometimes not, for the very same user across different logins — even though the
+# id_token and `/oauth2/userinfo` response both carry it reliably. `TokenDenylistInterceptor`
+# (main.bal) calls this on every request in place of the declarative JWKS `scopes` gate that used
+# to check the access token's own claim directly (removed for that reason).
+#
+# + accessToken - the caller's raw Bearer access token
+# + return - () if the caller belongs to the app group, or an UNAUTHORIZED/FORBIDDEN AppError
+public function verifyAppGroupMembership(string accessToken) returns models:AppError? {
+    map<json>|models:AppError info = userInfo(accessToken);
+    if info is models:AppError {
+        return info;
+    }
+    if !hasAppGroup(info) {
+        return utils:forbiddenError("Akun Anda tidak memiliki akses ke portal ini");
+    }
+    return ();
+}
+
 # Starts the WSO2 IS authentication flow and surfaces the flowId + available authenticators.
 #
 # + return - the flowId and authenticator list, or an AppError

@@ -54,11 +54,17 @@ public configurable string scimAdminPassword = "";
 
 # ===== Application access group (portal membership gate) =====
 # Only WSO2 IS users provisioned into the portal application may call the business API. WSO2
-# stamps the group into every access/id token as the custom claim `swaportal_group_id`
-# (value `swamedia_portal_app` for this app). Two independent checks use these:
-#   1. Declarative — every protected service's `@http:ServiceConfig` auth block sets
-#      `scopeKey: appGroupClaim` + `scopes: [appGroupId]`, so Ballerina's JWKS auth returns 403
-#      (signature-verified) before any resource runs if the token lacks the group.
+# stamps the group into the id_token (and the live `/oauth2/userinfo` response) as the custom
+# claim `swaportal_group_id` (value `swamedia_portal_app` for this app). Two independent checks
+# use these:
+#   1. Per-request — `TokenDenylistInterceptor` (main.bal) calls `services:verifyAppGroupMembership`,
+#      a (Redis-cached) live `userInfo` lookup, on every business request. This used to be a
+#      declarative `@http:ServiceConfig` `scopeKey`/`scopes` check reading the claim straight off
+#      the access token's own embedded claims — moved off that after WSO2 IS was observed to
+#      intermittently omit `swaportal_group_id`/`swaportal_role_id` from the access token at
+#      issuance (same user, same login flow, sometimes present, sometimes not), which caused every
+#      business endpoint to 403 at random even though the id_token/userinfo claim was reliably
+#      present. See documentation/note/Auth-Redis-DB.md §1.4 for the incident history.
 #   2. At login — `services:buildLoginResponse` rejects the sign-in up front with a clear message
 #      if the decoded id_token doesn't carry the group, instead of letting every later call 403.
 # Both are configurable so a different deployment/app can retarget the claim + value.

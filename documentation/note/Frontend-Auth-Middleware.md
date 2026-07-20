@@ -60,7 +60,7 @@ tidak.
 | `GET` | `/api/v1/auth/userinfo` | header `Authorization: Bearer <accessToken>` | Ambil ulang klaim user (dipakai cache 60 detik di backend) |
 | `POST` | `/api/v1/auth/introspect` | `{ token, tokenTypeHint? }` | Cek valid/tidaknya token tanpa memakainya (jarang perlu di FE, backend/JWKS sudah validasi tiap request) |
 | `POST` | `/api/v1/auth/revoke` | `{ token, tokenTypeHint? }` | Cabut access/refresh token secara eksplisit |
-| `POST` | `/api/v1/auth/logout` | `{ idToken }` | Akhiri sesi user di WSO2 IS saat user klik logout |
+| `POST` | `/api/v1/auth/logout` | `{ idToken, accessToken? }` | Akhiri sesi user di WSO2 IS saat user klik logout — sertakan `accessToken` (bukan cuma `idToken`) supaya token itu juga masuk denylist lokal backend, lihat catatan di [§9](#9-ringkasan-alur-logout) |
 
 `/init` dan `/token` (authorization_code exchange) hanya perlu dipakai kalau
 frontend ingin mengontrol pilihan authenticator sendiri; untuk kasus
@@ -86,6 +86,15 @@ interface LoginResponse {
 `data` di `ApiResponse` untuk endpoint `/login`, `/token`, dan `/refresh`
 berbentuk `LoginResponse` di atas.
 
+Field `user` berisi klaim id_token apa adanya (`sub`, `email`, `name`, dst.),
+**termasuk** dua klaim custom milik portal ini yang berguna untuk UI
+role-aware di FE (mis. tampilkan/sembunyikan menu tanpa nunggu roundtrip ke
+backend): `swaportal_role_id` dan `swaportal_group_id`. Backend tetap jadi
+sumber kebenaran untuk otorisasi sesungguhnya (RBAC ditegakkan ulang di
+setiap endpoint bisnis) — jangan pernah pakai klaim ini di FE sebagai
+satu-satunya gate untuk data sensitif, cukup untuk UX (mis. sembunyikan
+tombol yang toh akan 403 kalau dipaksa).
+
 ### 1.4 Kode error yang mungkin muncul
 
 Field `errors.code` dari `models:AppError` backend, yang paling relevan buat
@@ -94,7 +103,8 @@ FE:
 | Code | Status | Arti | Aksi FE yang disarankan |
 | --- | --- | --- | --- |
 | `UNAUTHORIZED` | 401 | Username/password salah, atau access token invalid/expired | Login gagal → tampilkan pesan; kalau dari `proxy.ts` → coba refresh, gagal → hapus cookie & redirect ke halaman login |
-| `VALIDATION_ERROR` | 400 | Body request tidak valid | Tampilkan pesan error ke user (pesan asli aman ditampilkan, lihat [Auth-Redis-DB.md §1.6](Auth-Redis-DB.md#16-penanganan-error--keamanan-pesan)) |
+| `FORBIDDEN` | 403 | Kredensial valid di WSO2 IS, tapi akun belum jadi member aplikasi ini (id_token tidak punya klaim `swaportal_group_id`) — kode yang sama juga dipakai endpoint bisnis lain saat `swaportal_role_id` belum di-assign | Login gagal dengan pesan **berbeda** dari 401 (mis. "akun belum punya akses ke portal ini, hubungi admin") — jangan diperlakukan sama seperti password salah |
+| `VALIDATION_ERROR` | 400 | Body request tidak valid | Tampilkan pesan error ke user (pesan asli aman ditampilkan, lihat [Auth-Redis-DB.md §1.6](Auth-Redis-DB.md#16-penanganan-error--keamanan-pesan)). **Catatan:** endpoint `/api/v1/auth/*` saat ini tidak pernah men-throw kode ini sendiri — body yang gagal di-bind (JSON malformed/field wajib hilang) ditolak Ballerina *sebelum* resource function-nya jalan, jadi responsnya **bukan** `ApiResponse` envelope biasa. Validasi field kosong di sisi FE sebelum submit supaya kasus ini jarang kejadian |
 | `INTERNAL_ERROR` | 500 | Error server (pesan sudah digenerik-kan backend) | Tampilkan pesan generik + tombol retry |
 
 ---
@@ -206,15 +216,17 @@ import { getSessionCookies, clearSessionCookies } from "@/lib/auth/session-cooki
 const BACKEND_BASE = process.env.BACKEND_BASE_URL ?? "http://localhost:8080";
 
 export async function POST() {
-  const { idToken } = await getSessionCookies();
+  const { idToken, accessToken } = await getSessionCookies();
 
   if (idToken) {
     // Best-effort: kalaupun WSO2 IS tidak terjangkau, tetap lanjut hapus cookie
     // lokal supaya user tidak "terjebak login" di browser-nya sendiri.
+    // Sertakan accessToken (opsional di LogoutRequest) supaya backend juga
+    // menambahkannya ke denylist lokal, bukan cuma mengakhiri sesi di WSO2 IS.
     await fetch(`${BACKEND_BASE}/api/v1/auth/logout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
+      body: JSON.stringify({ idToken, accessToken }),
     }).catch(() => {});
   }
 
@@ -479,12 +491,30 @@ hanya origin tools internal) karena bukan jalur pertahanan utama lagi.
 ## 9. Ringkasan alur logout
 
 1. Browser memanggil `POST /api/logout` (Next.js, bukan backend langsung).
-2. Route handler membaca `idToken` dari cookie, memanggil
-   `POST /api/v1/auth/logout` ke backend (best-effort — kegagalan tidak
-   menghentikan proses hapus cookie).
+2. Route handler membaca `idToken` (dan `accessToken` kalau ada) dari cookie,
+   memanggil `POST /api/v1/auth/logout` ke backend (best-effort — kegagalan
+   tidak menghentikan proses hapus cookie).
 3. Route handler menghapus ketiga cookie sesi.
 4. Browser redirect ke halaman login.
 
 Opsional: panggil juga `POST /api/v1/auth/revoke` untuk `refreshToken`
 sebelum menghapus cookie, kalau ingin refresh token itu benar-benar tidak
 bisa dipakai lagi meski bocor (endpoint ini per-token, bukan per-user).
+
+**Batas penting soal "logout" di backend ini**: `/logout` dan `/revoke`
+menambahkan token ke denylist yang **in-memory di proses Ballerina**, bukan
+disimpan di Redis. Artinya token yang sudah di-logout/revoke baru benar-benar
+tertolak selama proses backend yang sama masih hidup — restart service atau
+deploy multi-instance (mis. beberapa pod di belakang load balancer) bisa
+membuat token itu "hidup lagi" di instance lain sampai ia expired secara
+alami. Untuk FE ini tidak mengubah cara implementasi (tetap hapus cookie +
+panggil `/logout`), tapi jangan berasumsi "sudah logout" = "token pasti
+ditolak di semua request berikutnya" kalau butuh jaminan itu, bicarakan
+dengan tim backend soal kebutuhan denylist terpusat.
+
+Refresh token dari WSO2 IS **tidak dirotasi** oleh backend saat `/refresh`
+dipanggil — backend hanya meneruskan grant `refresh_token` ke WSO2 IS apa
+adanya. Kalau WSO2 IS mengembalikan `refreshToken` baru di respons
+`/refresh`, `proxy.ts` (§4) sudah menanganinya lewat
+`refreshed.refreshToken ?? refreshToken`; kalau tidak ada yang baru,
+refresh token lama tetap dipakai sampai kedaluwarsa sendiri.

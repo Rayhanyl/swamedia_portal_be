@@ -8,13 +8,13 @@ e-office, dsb) yang disimpan di PostgreSQL.
 
 ## Tech Stack
 
-| Komponen | Teknologi |
-| --- | --- |
-| Bahasa & runtime | Ballerina `2201.13.4` (berjalan di atas OpenJDK 21) |
-| Database utama | PostgreSQL 16 |
-| Cache | Redis 7 (cache generik: userinfo, invalidasi role/permission, dsb) |
-| Autentikasi | WSO2 Identity Server (OAuth2 / OIDC), akses token divalidasi via JWKS |
-| Kontainerisasi | Docker + Docker Compose |
+| Komponen         | Teknologi                                                             |
+| ---------------- | --------------------------------------------------------------------- |
+| Bahasa & runtime | Ballerina `2201.13.4` (berjalan di atas OpenJDK 21)                   |
+| Database utama   | PostgreSQL 16                                                         |
+| Cache            | Redis 7 (cache generik: userinfo, invalidasi role/permission, dsb)    |
+| Autentikasi      | WSO2 Identity Server (OAuth2 / OIDC), akses token divalidasi via JWKS |
+| Kontainerisasi   | Docker + Docker Compose                                               |
 
 ## Arsitektur
 
@@ -73,50 +73,53 @@ paginasi) ada di bagian "API Response Standard" pada `documentation/note/README.
 ## Fitur / Modul yang Sudah Dibangun
 
 ### Autentikasi (`/api/v1/auth`) — BFF di depan WSO2 IS
+
 Frontend tidak pernah bicara langsung ke WSO2 IS — semua URL, client credential, dan flowId
 tetap di backend.
 
-| Endpoint | Fungsi |
-| --- | --- |
-| `POST /api/v1/auth/init` | Mulai flow login (opsional, bisa langsung pakai `/login`) |
-| `POST /api/v1/auth/login` | Login username/password (menjalankan init → authenticate → token exchange sekaligus) |
-| `POST /api/v1/auth/token` | Tukar authorization code menjadi token |
-| `POST /api/v1/auth/refresh` | Refresh access token |
-| `GET  /api/v1/auth/userinfo` | Klaim user dari access token (di-cache di Redis 60 detik) |
-| `POST /api/v1/auth/introspect` | Cek status token |
-| `POST /api/v1/auth/revoke` | Cabut token (+ denylist lokal) |
-| `POST /api/v1/auth/logout` | Logout dari WSO2 IS (+ denylist lokal) |
+| Endpoint                       | Fungsi                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `POST /api/v1/auth/init`       | Mulai flow login (opsional, bisa langsung pakai `/login`)                            |
+| `POST /api/v1/auth/login`      | Login username/password (menjalankan init → authenticate → token exchange sekaligus) |
+| `POST /api/v1/auth/token`      | Tukar authorization code menjadi token                                               |
+| `POST /api/v1/auth/refresh`    | Refresh access token                                                                 |
+| `GET  /api/v1/auth/userinfo`   | Klaim user dari access token (di-cache di Redis 60 detik)                            |
+| `POST /api/v1/auth/introspect` | Cek status token                                                                     |
+| `POST /api/v1/auth/revoke`     | Cabut token (+ denylist lokal)                                                       |
+| `POST /api/v1/auth/logout`     | Logout dari WSO2 IS (+ denylist lokal)                                               |
 
 ### Dashboard (`/api/v1/dashboard`) — publik, sebelum login
+
 `GET /api/v1/dashboard/summary` — Total Proyek, Revenue Bulan Ini, Proyek Sedang Dikerjakan.
 
 ### Master Data — CRUD penuh (list berpaginasi + detail + create + update + soft/hard delete)
 
-| Modul | Endpoint dasar |
-| --- | --- |
-| Unit Organisasi (+ tree hierarki) | `/api/v1/master/units` |
-| Industri | `/api/v1/master/industries` |
-| Tags (label Proyek) | `/api/v1/master/tags` |
-| Resource Tags (label Resource Unit) | `/api/v1/master/resource-tags` |
-| Kategori Surat (DR-01..DR-09) | `/api/v1/master/kategori-surat` |
-| Jabatan (`jabatan_master`) | `/api/v1/master/jabatan` — **read-only**, sumber dropdown |
-| Karyawan (+ dropdown ringan) | `/api/v1/master/karyawan` |
-| Customer | `/api/v1/master/customers` |
-| Contact (narahubung customer) | `/api/v1/master/contacts` |
-| Kategori Finansial Keluar | `/api/v1/master/kategori-finansial-keluar` — dipakai Pembayaran & Pengeluaran; delete fisik (ditolak bila masih dirujuk) |
-| Resource Unit | `/api/v1/master/resource-unit` — 1 baris per unit (headcount/kapasitas + lead) |
+| Modul                               | Endpoint dasar                                                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Unit Organisasi (+ tree hierarki)   | `/api/v1/master/units`                                                                                                   |
+| Industri                            | `/api/v1/master/industries`                                                                                              |
+| Tags (label Proyek)                 | `/api/v1/master/tags`                                                                                                    |
+| Resource Tags (label Resource Unit) | `/api/v1/master/resource-tags`                                                                                           |
+| Kategori Surat (DR-01..DR-09)       | `/api/v1/master/kategori-surat`                                                                                          |
+| Jabatan (`jabatan_master`)          | `/api/v1/master/jabatan` — **read-only**, sumber dropdown                                                                |
+| Karyawan (+ dropdown ringan)        | `/api/v1/master/karyawan`                                                                                                |
+| Customer                            | `/api/v1/master/customers`                                                                                               |
+| Contact (narahubung customer)       | `/api/v1/master/contacts`                                                                                                |
+| Kategori Finansial Keluar           | `/api/v1/master/kategori-finansial-keluar` — dipakai Pembayaran & Pengeluaran; delete fisik (ditolak bila masih dirujuk) |
+| Resource Unit                       | `/api/v1/master/resource-unit` — 1 baris per unit (headcount/kapasitas + lead)                                           |
 
 ### RBAC — Role, Menu, Permission (skema v2.1)
+
 Role/Permission/Menu dikelola penuh di database ini (bukan lagi di WSO2 IS — IS hanya
 menyimpan referensi `swaportal_role_id`).
 
-| Modul | Endpoint dasar | Catatan |
-| --- | --- | --- |
-| Role | `/api/v1/master/roles` | CRUD penuh; delete = hard delete (cascade bersihkan role_permission/role_menu) |
-| Menu (navigasi, hierarkis) | `/api/v1/master/menu` (+ `/tree`) | CRUD penuh |
-| Modul (daftar modul aplikasi) | `/api/v1/master/modul` | **read-only**, master tetap |
-| Role Permission (matriks role × modul) | `/api/v1/master/role-permissions/{roleId}` | `GET` ambil matriks penuh, `PUT` simpan seluruh matriks sekaligus |
-| Role Menu (assignment menu per role) | `/api/v1/master/role-menus/{roleId}` | `GET` ambil tree + flag assigned, `PUT` simpan seluruh assignment sekaligus |
+| Modul                                  | Endpoint dasar                             | Catatan                                                                        |
+| -------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| Role                                   | `/api/v1/master/roles`                     | CRUD penuh; delete = hard delete (cascade bersihkan role_permission/role_menu) |
+| Menu (navigasi, hierarkis)             | `/api/v1/master/menu` (+ `/tree`)          | CRUD penuh                                                                     |
+| Modul (daftar modul aplikasi)          | `/api/v1/master/modul`                     | **read-only**, master tetap                                                    |
+| Role Permission (matriks role × modul) | `/api/v1/master/role-permissions/{roleId}` | `GET` ambil matriks penuh, `PUT` simpan seluruh matriks sekaligus              |
+| Role Menu (assignment menu per role)   | `/api/v1/master/role-menus/{roleId}`       | `GET` ambil tree + flag assigned, `PUT` simpan seluruh assignment sekaligus    |
 
 Menyimpan Role Permission/Role Menu otomatis meng-invalidate cache Redis
 (`role:{id}:permissions` / `role:{id}:menu`) yang dipakai middleware enforcement (lihat bagian
@@ -166,14 +169,14 @@ Alur setiap request (di `services:requirePermission`, sesuai catatan implementas
    (`role:{id}:permissions`); miss/Redis mati → fallback ke DB lalu isi ulang cache.
 3. Petakan **HTTP method + path → aksi**, lalu izinkan hanya bila bit-nya `true`:
 
-   | Trigger | Aksi | Kolom `role_permission` |
-   | --- | --- | --- |
-   | `GET` / `HEAD` | read | `can_read` |
-   | `POST` | create | `can_create` |
-   | `PUT` / `PATCH` | update | `can_update` |
-   | `DELETE` | delete | `can_delete` |
-   | segmen path `approve` / `reject` | approve | `can_approve` |
-   | segmen path `export` | export | `can_export` |
+   | Trigger                          | Aksi    | Kolom `role_permission` |
+   | -------------------------------- | ------- | ----------------------- |
+   | `GET` / `HEAD`                   | read    | `can_read`              |
+   | `POST`                           | create  | `can_create`            |
+   | `PUT` / `PATCH`                  | update  | `can_update`            |
+   | `DELETE`                         | delete  | `can_delete`            |
+   | segmen path `approve` / `reject` | approve | `can_approve`           |
+   | segmen path `export`             | export  | `can_export`            |
 
    Bila tidak berhak → **403 FORBIDDEN** (envelope error standar), resource tidak pernah jalan.
 
@@ -195,12 +198,12 @@ semua endpoint ter-gate. Dengan enforcement `true` tapi role belum di-set, peman
 
 **Service yang sengaja TIDAK di-gate** (tetap hanya JWKS + denylist):
 
-| Service | Alasan |
-| --- | --- |
+| Service                                                                               | Alasan                                                                                                                                                                |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/api/v1/profil-saya`, `/api/v1/akun-saya`, `/api/v1/notifikasi`, `/api/v1/menu-saya` | Self-service; sudah di-scope ke pemanggil sendiri (via `subject_id` / role di token), harus tetap bisa diakses semua role — tetap dijaga gerbang grup aplikasi + JWKS |
-| `/api/v1/master/tags`, `/api/v1/master/jabatan` | Data referensi bersama tanpa baris `modul` tersendiri (label proyek / dropdown jabatan) |
-| `/api/v1/business/kontrak-biasa` | Belum ada baris `KONTRAK_BIASA` di master `modul` — menunggu keputusan penempatan di matriks |
-| `/api/v1/auth/*`, `/api/v1/dashboard/summary` | Publik / pra-login secara desain |
+| `/api/v1/master/tags`, `/api/v1/master/jabatan`                                       | Data referensi bersama tanpa baris `modul` tersendiri (label proyek / dropdown jabatan)                                                                               |
+| `/api/v1/business/kontrak-biasa`                                                      | Belum ada baris `KONTRAK_BIASA` di master `modul` — menunggu keputusan penempatan di matriks                                                                          |
+| `/api/v1/auth/*`, `/api/v1/dashboard/summary`                                         | Publik / pra-login secara desain                                                                                                                                      |
 
 **Yang MASIH ditunda (belum di-enforce):**
 
@@ -216,18 +219,18 @@ semua endpoint ter-gate. Dengan enforcement `true` tapi role belum di-set, peman
 
 ### Sales Unit (Proyek)
 
-| Modul | Endpoint dasar | Catatan |
-| --- | --- | --- |
-| Proyek | `/api/v1/business/proyek` | CRUD penuh + dropdown ringan (`/dropdown`) + riwayat status (`/{id}/log-status`) |
-| Kontrak Payung | `/api/v1/business/kontrak-payung` | CRUD penuh + harga per role inline (`hargaRole`, replace-on-update) + dropdown (`/dropdown`); `noKontrakPayung` unik, delete ditolak bila masih dipakai proyek/kontrak biasa |
-| Kontrak Biasa | `/api/v1/business/kontrak-biasa` | CRUD penuh + dropdown (`/dropdown`); bisa berdiri sendiri atau di bawah kontrak payung (customer sama), `noKontrakBiasa` unik, delete ditolak bila masih dipakai proyek |
-| Unit Share | `/api/v1/business/proyek/{proyekId}/unit-share` | CRUD pembagian nilai proyek antar unit; total share tidak boleh melebihi `nilaiProyek`, satu unit unik per proyek |
-| Team Member | `/api/v1/business/proyek/{proyekId}/team-member` | CRUD penugasan karyawan ke proyek per periode (role, tgl_mulai/selesai, bobot); status undangan email dikontrol backend |
-| Proyek Tags | `/api/v1/business/proyek/{proyekId}/tags` | Kelola tag proyek (M2M): `GET` list, `PUT` ganti seluruh set, `POST /{tagId}` pasang satu (idempoten), `DELETE /{tagId}` lepas satu |
-| Target Revenue Unit | `/api/v1/business/target-revenue-unit` | CRUD target revenue per unit per tahun (4 triwulan); unik per (unit, tahun); delete fisik (tabel tanpa soft-delete) |
-| Revenue Unit (laporan) | `/api/v1/business/revenue-unit` | Read-only: `GET` laporan target vs realisasi per unit (4 TW + total + %), `GET /tw?triwulan=N` per triwulan, `GET /chart` data chart 4 titik |
-| Target Sales Unit | `/api/v1/business/target-sales-unit` | Kembaran Target Revenue Unit untuk target **sales/deal** (tabel `target_sales_unit`); CRUD, unik per (unit, tahun), delete fisik |
-| Sales Matrix / Pencapaian Sales Unit (laporan) | `/api/v1/business/sales-matrix` | Read-only: target sales vs realisasi **deal-basis** (`v_realisasi_sales_tw` = `nilai_bersih` proyek DEAL_KONTRAK); `GET` per unit (4 TW + total + %), `GET /tw`, `GET /chart` |
+| Modul                                          | Endpoint dasar                                   | Catatan                                                                                                                                                                       |
+| ---------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Proyek                                         | `/api/v1/business/proyek`                        | CRUD penuh + dropdown ringan (`/dropdown`) + riwayat status (`/{id}/log-status`)                                                                                              |
+| Kontrak Payung                                 | `/api/v1/business/kontrak-payung`                | CRUD penuh + harga per role inline (`hargaRole`, replace-on-update) + dropdown (`/dropdown`); `noKontrakPayung` unik, delete ditolak bila masih dipakai proyek/kontrak biasa  |
+| Kontrak Biasa                                  | `/api/v1/business/kontrak-biasa`                 | CRUD penuh + dropdown (`/dropdown`); bisa berdiri sendiri atau di bawah kontrak payung (customer sama), `noKontrakBiasa` unik, delete ditolak bila masih dipakai proyek       |
+| Unit Share                                     | `/api/v1/business/proyek/{proyekId}/unit-share`  | CRUD pembagian nilai proyek antar unit; total share tidak boleh melebihi `nilaiProyek`, satu unit unik per proyek                                                             |
+| Team Member                                    | `/api/v1/business/proyek/{proyekId}/team-member` | CRUD penugasan karyawan ke proyek per periode (role, tgl_mulai/selesai, bobot); status undangan email dikontrol backend                                                       |
+| Proyek Tags                                    | `/api/v1/business/proyek/{proyekId}/tags`        | Kelola tag proyek (M2M): `GET` list, `PUT` ganti seluruh set, `POST /{tagId}` pasang satu (idempoten), `DELETE /{tagId}` lepas satu                                           |
+| Target Revenue Unit                            | `/api/v1/business/target-revenue-unit`           | CRUD target revenue per unit per tahun (4 triwulan); unik per (unit, tahun); delete fisik (tabel tanpa soft-delete)                                                           |
+| Revenue Unit (laporan)                         | `/api/v1/business/revenue-unit`                  | Read-only: `GET` laporan target vs realisasi per unit (4 TW + total + %), `GET /tw?triwulan=N` per triwulan, `GET /chart` data chart 4 titik                                  |
+| Target Sales Unit                              | `/api/v1/business/target-sales-unit`             | Kembaran Target Revenue Unit untuk target **sales/deal** (tabel `target_sales_unit`); CRUD, unik per (unit, tahun), delete fisik                                              |
+| Sales Matrix / Pencapaian Sales Unit (laporan) | `/api/v1/business/sales-matrix`                  | Read-only: target sales vs realisasi **deal-basis** (`v_realisasi_sales_tw` = `nilai_bersih` proyek DEAL_KONTRAK); `GET` per unit (4 TW + total + %), `GET /tw`, `GET /chart` |
 
 `kodeProyek` digenerate backend (format `{prefix}-{kodeUnit}-{tahun}-{urutan}`, mis.
 "PRJ-MKT-2026-001") secara atomik per (unit, tahun) — pola yang sama persis dengan generate
@@ -238,7 +241,7 @@ dan saat pertama kali transisi ke `DEAL_KONTRAK`, `tanggalDeal` otomatis diisi t
 
 Kontrak Payung adalah entitas bisnis tersendiri (dirujuk oleh Proyek & Kontrak Biasa). Harga per
 project-role (`kontrak_payung_harga_role`, tipe `PER_BULAN`/`PER_PROJECT`) dikelola inline bersama
-kontraknya: dikirim di field `hargaRole` saat create, dan pada update seluruh set harga di-*replace*
+kontraknya: dikirim di field `hargaRole` saat create, dan pada update seluruh set harga di-_replace_
 hanya bila field `hargaRole` disertakan (bila diabaikan, harga lama dipertahankan). Delete bersifat
 soft-delete dan ditolak (`409`) selama masih ada proyek/kontrak biasa aktif yang merujuknya. Helper
 `kontrakPayungCustomerId`/`kontrakBiasaCustomerId` (validasi kepemilikan customer saat pilih
@@ -263,14 +266,14 @@ unit, atau satu unit bila `unit_id` diisi). `tahun` default tahun berjalan bila 
 
 ### Finansial
 
-| Modul | Endpoint dasar | Catatan |
-| --- | --- | --- |
-| Tagihan (+ riwayat status) | `/api/v1/finance/tagihan` | CRUD; `noTagihan` unik; perubahan `statusAktif` dicatat ke `status_tagihan` (`/{id}/status-history`); `totalPencairan` dihitung |
-| Pencairan Tagihan | `/api/v1/finance/tagihan/{tagihanId}/pencairan` | CRUD sub-resource (realisasi cash-in bertahap); total non-DIBATALKAN tidak boleh melebihi `nilaiTagihan` |
-| Pembayaran | `/api/v1/finance/pembayaran` | CRUD + approval (`PUT /{id}/approve`, `/reject`); cash-out terikat proyek |
-| Pengeluaran Perusahaan | `/api/v1/finance/pengeluaran-perusahaan` | CRUD + approval; cash-out operasional terikat unit |
-| Saldo Awal Kas (+ Posisi Kas) | `/api/v1/finance/saldo-awal-kas` | Append-only (list/detail/create, tanpa update/delete) + `GET /posisi-kas` (dari view `v_posisi_kas`) |
-| Cashflow (laporan) | `/api/v1/business/cashflow` | Read-only per tahun (company-wide): `GET` 12 baris bulanan inflow/outflow/net + total + posisi kas terkini, `GET /chart` 12 titik inflow-vs-outflow. Inflow = pencairan `PARSIAL`/`FINAL`; outflow = pembayaran + pengeluaran `APPROVED` ber-`tanggalRealisasi` |
+| Modul                         | Endpoint dasar                                  | Catatan                                                                                                                                                                                                                                                         |
+| ----------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tagihan (+ riwayat status)    | `/api/v1/finance/tagihan`                       | CRUD; `noTagihan` unik; perubahan `statusAktif` dicatat ke `status_tagihan` (`/{id}/status-history`); `totalPencairan` dihitung                                                                                                                                 |
+| Pencairan Tagihan             | `/api/v1/finance/tagihan/{tagihanId}/pencairan` | CRUD sub-resource (realisasi cash-in bertahap); total non-DIBATALKAN tidak boleh melebihi `nilaiTagihan`                                                                                                                                                        |
+| Pembayaran                    | `/api/v1/finance/pembayaran`                    | CRUD + approval (`PUT /{id}/approve`, `/reject`); cash-out terikat proyek                                                                                                                                                                                       |
+| Pengeluaran Perusahaan        | `/api/v1/finance/pengeluaran-perusahaan`        | CRUD + approval; cash-out operasional terikat unit                                                                                                                                                                                                              |
+| Saldo Awal Kas (+ Posisi Kas) | `/api/v1/finance/saldo-awal-kas`                | Append-only (list/detail/create, tanpa update/delete) + `GET /posisi-kas` (dari view `v_posisi_kas`)                                                                                                                                                            |
+| Cashflow (laporan)            | `/api/v1/business/cashflow`                     | Read-only per tahun (company-wide): `GET` 12 baris bulanan inflow/outflow/net + total + posisi kas terkini, `GET /chart` 12 titik inflow-vs-outflow. Inflow = pencairan `PARSIAL`/`FINAL`; outflow = pembayaran + pengeluaran `APPROVED` ber-`tanggalRealisasi` |
 
 **Alur approval Pembayaran/Pengeluaran** memakai status `PENGAJUAN → APPROVED / REJECTED`. Edit
 hanya diizinkan selama `PENGAJUAN`/`REJECTED` — mengedit baris `REJECTED` otomatis membukanya
@@ -292,20 +295,20 @@ saldo). Field turunan saldo bernilai `null` bila belum ada baris saldo awal kas.
 
 ### e-Office
 
-| Modul | Endpoint dasar | Catatan |
-| --- | --- | --- |
+| Modul                        | Endpoint dasar                  | Catatan                                                                                                                                          |
+| ---------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Daftar Surat (`nomor_surat`) | `/api/v1/business/daftar-surat` | CRUD + preview nomor surat; nomor digenerate atomik (advisory lock) per (kategori, tahun); delete = pembatalan (wajib alasan), bukan hapus fisik |
 
 ### Pengaturan (self-service)
 
-| Modul | Endpoint dasar | Catatan |
-| --- | --- | --- |
-| Profil Saya | `/api/v1/profil-saya` | `GET` profil karyawan milik sendiri, `PUT` update kontak HR lokal (`email`/`noHp` saja) |
-| Akun Saya | `/api/v1/akun-saya` | `GET` identitas WSO2 IS milik pemanggil (prefill form), `PUT` update data (`email`/`firstName`/`lastName`/`telepon`/`organization`/`country`), `PUT /password` ganti password (terpisah dari update data); role **tidak** bisa diubah di sini — lihat catatan di bawah |
-| Menu Saya | `/api/v1/menu-saya` | `GET` pohon menu navigasi terfilter sesuai role pemanggil (hanya menu yang di-assign ke role & AKTIF); role diambil dari claim `swaportal_role_id`, cache-aside `role:{id}:menu` |
-| Notifikasi | `/api/v1/notifikasi` | `GET` list (filter `kategori`/`is_read`) + `/unread-count`; `PUT /{id}/read` tandai satu, `PUT /read-all` tandai semua |
-| Konfigurasi Sistem | `/api/v1/konfigurasi-sistem` | `GET` list (registry `sys_config` yang sudah di-seed) + `GET /{key}`, `PUT /{key}` ubah `value` saja — tidak ada create/delete, set key tetap |
-| Manajemen User | `/api/v1/manajemen-user` | `GET` list/detail (mirror `user_cache`, LEFT JOIN karyawan) + **operasi tulis via SCIM2**: `POST` buat user, `PUT /{subjectId}` ubah profil, `PUT /{subjectId}/role` set role, `PUT /{subjectId}/status` enable/disable, `GET /{subjectId}/akun` + `PUT /{subjectId}/akun` Super Admin lihat/ubah data akun user lain (`firstName`/`lastName`/`organization`/`country`/`email`/`telepon`/`roleId`/`groupId`), `PUT /{subjectId}/password` reset password (terpisah) — lihat catatan di bawah |
+| Modul              | Endpoint dasar               | Catatan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Profil Saya        | `/api/v1/profil-saya`        | `GET` profil karyawan milik sendiri, `PUT` update kontak HR lokal (`email`/`noHp` saja)                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Akun Saya          | `/api/v1/akun-saya`          | `GET` identitas WSO2 IS milik pemanggil (prefill form), `PUT` update data (`email`/`firstName`/`lastName`/`telepon`/`organization`/`country`), `PUT /password` ganti password (terpisah dari update data); role **tidak** bisa diubah di sini — lihat catatan di bawah                                                                                                                                                                                                                       |
+| Menu Saya          | `/api/v1/menu-saya`          | `GET` pohon menu navigasi terfilter sesuai role pemanggil (hanya menu yang di-assign ke role & AKTIF); role diambil dari claim `swaportal_role_id`, cache-aside `role:{id}:menu`                                                                                                                                                                                                                                                                                                             |
+| Notifikasi         | `/api/v1/notifikasi`         | `GET` list (filter `kategori`/`is_read`) + `/unread-count`; `PUT /{id}/read` tandai satu, `PUT /read-all` tandai semua                                                                                                                                                                                                                                                                                                                                                                       |
+| Konfigurasi Sistem | `/api/v1/konfigurasi-sistem` | `GET` list (registry `sys_config` yang sudah di-seed) + `GET /{key}`, `PUT /{key}` ubah `value` saja — tidak ada create/delete, set key tetap                                                                                                                                                                                                                                                                                                                                                |
+| Manajemen User     | `/api/v1/manajemen-user`     | `GET` list/detail (mirror `user_cache`, LEFT JOIN karyawan) + **operasi tulis via SCIM2**: `POST` buat user, `PUT /{subjectId}` ubah profil, `PUT /{subjectId}/role` set role, `PUT /{subjectId}/status` enable/disable, `GET /{subjectId}/akun` + `PUT /{subjectId}/akun` Super Admin lihat/ubah data akun user lain (`firstName`/`lastName`/`organization`/`country`/`email`/`telepon`/`roleId`/`groupId`), `PUT /{subjectId}/password` reset password (terpisah) — lihat catatan di bawah |
 
 Ketiga modul self-service di atas (Profil Saya, Akun Saya, Notifikasi) **tidak menerima id dari
 path/query** — target selalu di-resolve dari klaim `sub` di access token, jadi seorang user hanya
@@ -377,8 +380,8 @@ baru, jadi tidak ditambahi round-trip DB di setiap refresh.
 
 ### Audit Log (read-only)
 
-| Modul | Endpoint dasar | Catatan |
-| --- | --- | --- |
+| Modul     | Endpoint dasar      | Catatan                                                                                                    |
+| --------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
 | Audit Log | `/api/v1/audit-log` | Read-only; `GET` list (filter `table_name`/`aksi`/`aktor`/`record_id`/`date_from`/`date_to`) + `GET /{id}` |
 
 Tabel `audit_log` bersifat append-only dan ditulis secara internal oleh service lain (mis.
@@ -417,6 +420,7 @@ Ballerina/Postgres/Redis manual) atau **langsung dengan `bal run`** (untuk devel
 dengan hot-reload lebih cepat).
 
 Yang selalu dibutuhkan di kedua cara:
+
 - Kredensial aplikasi OAuth2 di WSO2 Identity Server (`clientId`, `clientSecret`, `redirectUri`).
 
 ## Cara 1 — Menjalankan dengan Docker (direkomendasikan)
@@ -480,6 +484,7 @@ bukan musl (basis Alpine), jadi Alpine akan gagal start dengan `UnsatisfiedLinkE
 Untuk development harian: build lebih cepat, tidak perlu rebuild image Docker tiap ubah kode.
 
 Prasyarat:
+
 - [Ballerina Swan Lake `2201.13.4`](https://ballerina.io/downloads/) terinstall lokal (versi
   harus sama dengan `distribution` di `Ballerina.toml` agar tidak ada perbedaan compiler).
 - PostgreSQL 16 dan Redis 7 berjalan (lokal, atau paling gampang lewat Docker: jalankan
@@ -587,10 +592,10 @@ response API, ada di `documentation/note/README.md`.
 
 ## Dokumentasi Tambahan
 
-| Dokumen | Isi |
-| --- | --- |
-| `documentation/database/swamedia_portal_schema_v2.1.sql` | Skema database terkini (source of truth struktur tabel) |
-| `documentation/openapi/swamedia_portal_openapi_v1.1.0.yaml` | Kontrak OpenAPI |
-| `documentation/note/Auth-Redis-DB.md` | Pola cache Redis untuk userinfo & role/permission |
-| `documentation/note/Frontend-Auth-Middleware.md` | Panduan integrasi auth dari sisi frontend |
-| `documentation/note/CHANGELOG_openapi_v1.1.0.md` | Riwayat perubahan kontrak OpenAPI |
+| Dokumen                                                     | Isi                                                     |
+| ----------------------------------------------------------- | ------------------------------------------------------- |
+| `documentation/database/swamedia_portal_schema_v2.1.sql`    | Skema database terkini (source of truth struktur tabel) |
+| `documentation/openapi/swamedia_portal_openapi_v1.1.0.yaml` | Kontrak OpenAPI                                         |
+| `documentation/note/Auth-Redis-DB.md`                       | Pola cache Redis untuk userinfo & role/permission       |
+| `documentation/note/Frontend-Auth-Middleware.md`            | Panduan integrasi auth dari sisi frontend               |
+| `documentation/note/CHANGELOG_openapi_v1.1.0.md`            | Riwayat perubahan kontrak OpenAPI                       |

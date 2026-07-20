@@ -14,6 +14,15 @@ listener http:Listener apiListener = new (config:port);
 # structurally satisfying `http:InterceptableService`), not once for the whole listener —
 # so every JWKS-protected `service` block below adds
 # `public function createInterceptors() => [tokenDenylistInterceptor];` to pick this up.
+#
+# Also enforces portal group membership here via `services:verifyAppGroupMembership` (a live,
+# Redis-cached `userInfo` lookup) instead of the declarative JWKS `scopes` check that used to sit
+# in every service's `@http:ServiceConfig.auth` block. That check validated `swaportal_group_id`
+# straight off the access token's own embedded claims, which WSO2 IS has been observed to
+# intermittently omit at token issuance — the same user, same login flow, sometimes gets an access
+# token carrying the claim and sometimes doesn't, causing every business endpoint to 403 at random
+# even though the id_token/userinfo claim is reliably present. See documentation/note/Auth-Redis-DB.md
+# §1.4 for the incident history.
 service class TokenDenylistInterceptor {
     *http:RequestInterceptor;
 
@@ -22,8 +31,14 @@ service class TokenDenylistInterceptor {
         string|http:HeaderNotFoundError authHeader = req.getHeader("Authorization");
         if authHeader is string && authHeader.startsWith("Bearer ") {
             string token = authHeader.substring(7).trim();
-            if token.length() > 0 && utils:isTokenDenylisted(token) {
-                return errorToResponse(utils:unauthorizedError("Token sudah tidak berlaku, silakan login kembali"));
+            if token.length() > 0 {
+                if utils:isTokenDenylisted(token) {
+                    return errorToResponse(utils:unauthorizedError("Token sudah tidak berlaku, silakan login kembali"));
+                }
+                models:AppError? groupGate = services:verifyAppGroupMembership(token);
+                if groupGate is models:AppError {
+                    return errorToResponse(groupGate);
+                }
             }
         }
         return ctx.next();
@@ -269,14 +284,12 @@ service /api/v1/dashboard on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -308,14 +321,12 @@ service /api/v1/business on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -412,14 +423,12 @@ service /api/v1/master/units on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -504,14 +513,12 @@ service /api/v1/master/industries on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -598,14 +605,12 @@ service /api/v1/master/tags on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -693,14 +698,12 @@ service /api/v1/master/resource\-tags on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -786,14 +789,12 @@ service /api/v1/master/kategori\-surat on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -876,14 +877,12 @@ service /api/v1/master/roles on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -976,14 +975,12 @@ service /api/v1/master/menu on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1020,14 +1017,12 @@ service /api/v1/master/modul on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1078,14 +1073,12 @@ service /api/v1/master/role\-permissions on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1131,14 +1124,12 @@ service /api/v1/master/role\-menus on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1176,14 +1167,12 @@ service /api/v1/master/jabatan on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1283,14 +1272,12 @@ service /api/v1/master/karyawan on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1377,14 +1364,12 @@ service /api/v1/master/customers on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1474,14 +1459,12 @@ service /api/v1/master/contacts on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1592,14 +1575,12 @@ service /api/v1/business/daftar\-surat on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1869,14 +1850,12 @@ service /api/v1/business/proyek on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -1981,14 +1960,12 @@ service /api/v1/business/kontrak\-payung on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2093,14 +2070,12 @@ service /api/v1/business/kontrak\-biasa on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2192,14 +2167,12 @@ service /api/v1/business/target\-revenue\-unit on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2263,14 +2236,12 @@ service /api/v1/business/revenue\-unit on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2331,14 +2302,12 @@ service /api/v1/profil\-saya on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2409,14 +2378,12 @@ service /api/v1/akun\-saya on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2455,14 +2422,12 @@ service /api/v1/menu\-saya on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2547,14 +2512,12 @@ service /api/v1/notifikasi on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2606,14 +2569,12 @@ service /api/v1/audit\-log on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2679,14 +2640,12 @@ service /api/v1/konfigurasi\-sistem on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2830,14 +2789,12 @@ service /api/v1/manajemen\-user on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -2990,14 +2947,12 @@ service /api/v1/finance/tagihan on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -3113,14 +3068,12 @@ service /api/v1/finance/pembayaran on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -3235,14 +3188,12 @@ service /api/v1/finance/pengeluaran\-perusahaan on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -3316,14 +3267,12 @@ service /api/v1/finance/saldo\-awal\-kas on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -3412,14 +3361,12 @@ service /api/v1/master/kategori\-finansial\-keluar on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -3510,14 +3457,12 @@ service /api/v1/business/target\-sales\-unit on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -3579,14 +3524,12 @@ service /api/v1/business/sales\-matrix on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
@@ -3677,14 +3620,12 @@ service /api/v1/master/resource\-unit on apiListener {
             jwtValidatorConfig: {
                 issuer: config:jwtIssuer,
                 audience: config:clientId,
-                scopeKey: config:appGroupClaim,
                 signatureConfig: {
                     jwksConfig: {
                         url: config:jwksUrl
                     }
                 }
-            },
-            scopes: [config:appGroupId]
+            }
         }
     ]
 }
