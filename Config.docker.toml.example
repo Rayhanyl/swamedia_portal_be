@@ -1,0 +1,37 @@
+# Template for running this backend via `docker compose`.
+#
+# Copy this file to `Config.docker.toml` (gitignored, same as `Config.toml`) and fill in the
+# real WSO2 IS credentials. `dbHost`/`redisHost` are already set to the docker-compose service
+# names ("postgres"/"redis") — leave those as-is, they only resolve inside the compose network.
+#
+#   cp Config.docker.toml.example Config.docker.toml
+#
+[rayha.swamedia_portal_be.config]
+# WSO2 IS OAuth2 application credentials.
+clientId = ""
+clientSecret = ""
+redirectUri = "http://localhost:5173/"
+
+# WSO2 IS base host. Endpoint paths default to the standard WSO2 paths (see modules/config/config.bal)
+# and only need to be overridden here if your deployment differs.
+iamBaseUrl = "https://iam.apicentrum.biz.id"
+
+# Backend HTTP listener port (must match the container port exposed in docker-compose.yml).
+port = 8080
+
+# PostgreSQL — points at the `postgres` service defined in docker-compose.yml, not localhost.
+dbHost = "postgres"
+dbPort = 5432
+dbName = "swamedia_portal_db"
+dbUser = "postgres"
+dbPassword = ""
+
+# Redis — points at the `redis` service defined in docker-compose.yml, not localhost.
+redisHost = "redis"
+redisPort = 6379
+
+# Super Admin IS account (Basic Auth) — used only by Akun Saya / Manajemen User "akun" writes
+# (password reset, bundled email/name/phone/role). See modules/config/config.bal for rationale.
+# Set the real Super Admin credentials only in Config.docker.toml (gitignored), never here.
+scimAdminUsername = ""
+scimAdminPassword = ""

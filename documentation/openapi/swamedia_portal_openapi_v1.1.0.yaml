@@ -1,0 +1,2723 @@
+openapi: 3.0.3
+info:
+  title: Swamedia Portal API
+  description: >-
+    Kontrak OpenAPI — Swamedia Project Website Portal Backend. Mencakup seluruh endpoint yang
+    sudah dibangun: Auth BFF (WSO2 IS), Dashboard, RBAC (Role/Menu/Modul/Role Permission/Role
+    Menu), seluruh Master Data, Sales Unit (Proyek + sub-resource), Kontrak Payung/Biasa,
+    Revenue Unit, e-Office (Daftar Surat), Pengaturan (Profil Saya/Notifikasi/Konfigurasi
+    Sistem/Manajemen User), Audit Log, dan Finansial (Tagihan/Pencairan/Pembayaran/Pengeluaran
+    Perusahaan/Saldo Awal Kas).
+
+
+    VERSI RINGKAS: Dokumen ini SENGAJA tidak menyertakan `components.schemas` (bentuk detail
+    tiap request/response body) — hanya daftar endpoint (path, method, parameter, ringkasan
+    aksi, kode status, dan `x-roles-allowed`). Bentuk payload lengkap ada di
+    `modules/models/models.bal`.
+
+
+    ARSITEKTUR: BFF (Backend-For-Frontend) di depan WSO2 Identity Server (IS) untuk auth,
+    dipublikasikan lewat WSO2 API Manager (APIM) sebagai API Gateway. Frontend mengirim DUA
+    header kredensial: `Authorization: Bearer <access_token>` (WSO2 IS) dan `apikey` (APIM) —
+    header `apikey` tidak didefinisikan di kontrak ini (dikonfigurasi di level APIM).
+
+
+    RESPONSE STANDARD: Semua response (sukses/error) dibungkus SATU amplop `ApiResponse` yang
+    sama: `{ success, message, data, errors, meta }`. `meta.pagination` hanya ada pada endpoint
+    list berpaginasi.
+
+
+    CATATAN 401 (dua bentuk body berbeda — lihat `components.responses.Unauthorized`):
+    (1) penolakan oleh guard JWT `@http:ServiceConfig` (paling sering) mengembalikan format
+    bawaan framework Ballerina, BUKAN amplop `ApiResponse`; (2) kegagalan `subjectFromAccessToken()`
+    (jarang) memang mengembalikan amplop `ApiResponse`. FE sebaiknya bercabang dari HTTP status
+    code 401 saja, bukan dari bentuk body.
+
+
+    RBAC (v1.2 — ENFORCEMENT AKTIF): Setiap service (kecuali yang ditandai "tidak di-gate")
+    kini dijaga `PermissionInterceptor` (lihat `main.bal`) yang membaca role pemanggil dari
+    klaim `swaportal_role_id` (userinfo), memuat matriks `role_permission` role tsb dari cache
+    Redis, dan mengembalikan 403 bila bit CRUD/approve/export yang dibutuhkan tidak dimiliki.
+    Extension `x-roles-allowed` pada tiap operation bersumber LANGSUNG dari seed matriks
+    `role_permission` di `documentation/database/swamedia_portal_schema_v2.1.sql` — bukan
+    dugaan. Operation TANPA `x-roles-allowed` berarti modul tsb tidak dimiliki oleh role
+    manapun selain Super Admin, ATAU service-nya sengaja tidak di-gate RBAC (self-service /
+    data referensi bersama) — dicatat eksplisit di `description` operation tsb.
+
+    Dua hal yang masih DITUNDA (bit dibaca tapi belum ditegakkan penuh): (a) `scope =
+    UNIT_SENDIRI` (penyaringan baris per unit pemanggil), (b) validasi `karyawan.unit_id =
+    "Direktur Utama"` untuk approval Direktur (baru bit `can_approve` level-role yang dicek).
+
+
+    CATATAN KEAMANAN — Karyawan.subjectId: menautkan karyawan ke identitas WSO2 IS, sensitif —
+    hanya muncul di response DETAIL, tidak di LIST; keunikannya dicek manual (409 bila bentrok).
+  version: 1.1.0
+servers:
+  - url: http://localhost:8080
+    description: Local development
+tags:
+  - name: Auth
+    description: WSO2 IS authentication/session endpoints
+  - name: Dashboard
+    description: Ringkasan KPI sebelum login
+  - name: Business
+    description: Endpoint pembuktian guard JWT
+  - name: Role
+    description: RBAC — master Role
+  - name: Menu
+    description: RBAC — master Menu (navigasi hierarkis)
+  - name: Modul
+    description: RBAC — master Modul aplikasi (read-only)
+  - name: Role Permission
+    description: RBAC — matriks permission per role x modul
+  - name: Role Menu
+    description: RBAC — assignment menu per role
+  - name: Unit
+    description: Master data unit organisasi
+  - name: Industri
+    description: Master data industri
+  - name: Tags
+    description: Master data label/tag untuk Proyek (tidak di-gate RBAC)
+  - name: Resource Tags
+    description: Master data label/tag untuk Resource Unit
+  - name: Kategori Surat
+    description: Master jenis surat (DR-01..DR-09)
+  - name: Jabatan
+    description: Master data jabatan karyawan (tidak di-gate RBAC)
+  - name: Karyawan
+    description: Master data karyawan
+  - name: Customer
+    description: Master data customer
+  - name: Contact
+    description: Master data kontak person milik Customer
+  - name: Daftar Surat
+    description: e-Office — penomoran surat
+  - name: Proyek
+    description: Sales Unit — Proyek
+  - name: Unit Share
+    description: Sales Unit — pembagian nilai proyek antar unit
+  - name: Team Member
+    description: Sales Unit — penugasan karyawan ke proyek
+  - name: Proyek Tags
+    description: Sales Unit — label pada proyek (M2M)
+  - name: Kontrak Payung
+    description: Sales Unit — kontrak payung + harga per role
+  - name: Kontrak Biasa
+    description: Sales Unit — kontrak biasa (tidak di-gate RBAC)
+  - name: Target Revenue Unit
+    description: Sales Unit — target revenue per unit per tahun
+  - name: Revenue Unit
+    description: Sales Unit — laporan target vs realisasi (read-only)
+  - name: Target Sales Unit
+    description: Sales Unit — target sales/deal per unit per tahun
+  - name: Sales Matrix
+    description: Sales Unit — pencapaian sales (target vs realisasi deal, read-only)
+  - name: Resource Unit
+    description: Master data resource unit (headcount/kapasitas per unit)
+  - name: Kategori Finansial Keluar
+    description: Master kategori Pembayaran/Pengeluaran (tidak di-gate RBAC)
+  - name: Cashflow
+    description: Laporan arus kas company-wide (read-only)
+  - name: Profil Saya
+    description: Pengaturan — self-service profil (tidak di-gate RBAC)
+  - name: Akun Saya
+    description: Pengaturan — self-service identitas login WSO2 IS via SCIM2 (tidak di-gate RBAC)
+  - name: Menu Saya
+    description: Pengaturan — pohon menu navigasi terfilter sesuai role pemanggil (self-service)
+  - name: Notifikasi
+    description: Pengaturan — inbox notifikasi self-service (tidak di-gate RBAC)
+  - name: Konfigurasi Sistem
+    description: Pengaturan — registry sys_config
+  - name: Manajemen User
+    description: Pengaturan — mirror user WSO2 IS (read) + write via SCIM2
+  - name: Audit Log
+    description: Read-only audit trail
+  - name: Tagihan
+    description: Finansial — tagihan proyek
+  - name: Pencairan
+    description: Finansial — pencairan tagihan (sub-resource Tagihan)
+  - name: Pembayaran
+    description: Finansial — cash-out proyek + approval
+  - name: Pengeluaran Perusahaan
+    description: Finansial — cash-out internal unit + approval
+  - name: Saldo Awal Kas
+    description: Finansial — saldo awal kas (append-only) + posisi kas
+security:
+  - bearerAuth: []
+x-common:
+  pageParam: &pageParam
+    name: page
+    in: query
+    schema: {type: integer, default: 1}
+  limitParam: &limitParam
+    name: limit
+    in: query
+    schema: {type: integer, default: 20}
+paths:
+  # ───────────────────────── Auth ─────────────────────────
+  /api/v1/auth/init:
+    post:
+      tags: [Auth]
+      summary: Mulai flow login (opsional)
+      description: Wraps WSO2 IS `POST /oauth2/authorize`. Publik.
+      security: []
+      responses:
+        '200': {description: Flow dimulai}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login username/password
+      description: Menjalankan init -> authenticate -> token exchange sekaligus. Publik.
+      security: []
+      requestBody:
+        required: true
+        description: 'username, password'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Login berhasil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {description: Username/password salah}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/auth/token:
+    post:
+      tags: [Auth]
+      summary: Tukar authorization code menjadi token
+      security: []
+      requestBody:
+        required: true
+        description: 'code'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Token diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        description: 'refreshToken'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Token diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {description: Refresh token tidak valid/expired}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/auth/userinfo:
+    get:
+      tags: [Auth]
+      summary: Klaim user dari access token
+      description: Wraps WSO2 IS `GET /oauth2/userinfo`; di-cache Redis 60 detik.
+      parameters:
+        - {name: Authorization, in: header, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Userinfo diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/auth/introspect:
+    post:
+      tags: [Auth]
+      summary: Introspeksi token (RFC 7662)
+      security: []
+      requestBody:
+        required: true
+        description: 'token, tokenTypeHint?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Hasil introspeksi}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/auth/revoke:
+    post:
+      tags: [Auth]
+      summary: Cabut token (+ denylist lokal)
+      security: []
+      requestBody:
+        required: true
+        description: 'token, tokenTypeHint?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Token dicabut}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout dari WSO2 IS (+ denylist lokal)
+      security: []
+      requestBody:
+        required: true
+        description: 'idToken'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Logout berhasil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  # ───────────────────────── Dashboard / Business ─────────────────────────
+  /api/v1/dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: KPI card (Total Proyek, Revenue Bulan Ini, Target Sales Sisa, Posisi Kas)
+      description: Publik, sebelum login.
+      security: []
+      responses:
+        '200': {description: Ringkasan diambil}
+  /api/v1/business/ping:
+    get:
+      tags: [Business]
+      summary: Verifikasi access token (200 bila JWKS valid)
+      responses:
+        '200': {description: Token valid}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+
+  # ───────────────────────── RBAC ─────────────────────────
+  /api/v1/master/roles:
+    get:
+      tags: [Role]
+      summary: Daftar role (paginated)
+      x-roles-allowed: [Super Admin]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar role diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Role]
+      summary: Buat role baru
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'kodeRole (unik), namaRole, deskripsi?, status? (default AKTIF)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Role dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: kodeRole sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/roles/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Role]
+      summary: Detail role
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Detail role diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Role]
+      summary: Ubah role
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'kodeRole, namaRole, deskripsi?, status'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Role diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: kodeRole sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Role]
+      summary: Hapus role (hard delete, cascade role_permission/role_menu)
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Role dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/master/menu/tree:
+    get:
+      tags: [Menu]
+      summary: Hierarki menu (nested children)
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Hierarki menu diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/master/menu:
+    get:
+      tags: [Menu]
+      summary: Daftar menu (paginated, flat)
+      x-roles-allowed: [Super Admin]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - {name: parent_id, in: query, schema: {type: integer}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar menu diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Menu]
+      summary: Buat menu baru
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'parentId? (nullable), kodeMenu, namaMenu, path?, icon?, urutan?, status?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Menu dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: kodeMenu sudah digunakan}
+  /api/v1/master/menu/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Menu]
+      summary: Detail menu
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Detail menu diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Menu]
+      summary: Ubah menu
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'parentId? (nullable), kodeMenu, namaMenu, path?, icon?, urutan, status'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Menu diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: kodeMenu sudah digunakan}
+    delete:
+      tags: [Menu]
+      summary: Hapus menu
+      x-roles-allowed: [Super Admin]
+      description: Ditolak bila masih memiliki sub-menu aktif atau masih di-assign ke suatu role.
+      responses:
+        '200': {description: Menu dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih memiliki sub-menu aktif atau di-assign ke role}
+  /api/v1/master/modul:
+    get:
+      tags: [Modul]
+      summary: Daftar modul aplikasi (read-only, master tetap)
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Daftar modul diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/master/role-permissions/{roleId}:
+    parameters: [{name: roleId, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Role Permission]
+      summary: Matriks permission penuh untuk satu role (semua modul)
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Matriks diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Role Permission]
+      summary: Simpan seluruh matriks permission role (replace wholesale)
+      x-roles-allowed: [Super Admin]
+      description: >-
+        Menginvalidate cache Redis `role:{roleId}:permissions` yang dibaca PermissionInterceptor
+        — perubahan langsung berlaku pada request berikutnya.
+      requestBody:
+        required: true
+        description: 'items[]: {modulId, canCreate, canRead, canUpdate, canDelete, canApprove, canExport, scope}'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Matriks disimpan}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/master/role-menus/{roleId}:
+    parameters: [{name: roleId, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Role Menu]
+      summary: Tree menu + flag assigned untuk satu role
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Assignment diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Role Menu]
+      summary: Simpan seluruh assignment menu role (replace wholesale)
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'menuIds: int[]'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Assignment disimpan}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # ───────────────────────── Master Data ─────────────────────────
+  /api/v1/master/units:
+    get:
+      tags: [Unit]
+      summary: Daftar unit (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - {name: parent_id, in: query, schema: {type: integer}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar unit diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Unit]
+      summary: Buat unit baru
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'namaUnit (3-100), kodeUnit (1-20, unik), parentUnitId? (nullable), status? (default AKTIF)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Unit dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Nama unit atau kodeUnit sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/units/tree:
+    get:
+      tags: [Unit]
+      summary: Hierarki unit (nested children, dari view v_unit)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      responses:
+        '200': {description: Hierarki unit diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/units/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Unit]
+      summary: Detail unit
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      responses:
+        '200': {description: Detail unit diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Unit]
+      summary: Ubah unit
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'namaUnit, kodeUnit, parentUnitId? (nullable, tidak boleh referensi melingkar), status'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Unit diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Nama unit/kodeUnit sudah dipakai unit lain}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Unit]
+      summary: Soft delete unit
+      x-roles-allowed: [Super Admin]
+      description: Ditolak jika masih memiliki sub-unit aktif.
+      responses:
+        '200': {description: Unit dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih memiliki sub-unit aktif}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/industries:
+    get:
+      tags: [Industri]
+      summary: Daftar industri (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar industri diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Industri]
+      summary: Buat industri baru
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'kode (disimpan uppercase, unik case-insensitive), nama (3-100)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Industri dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Kode industri sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/industries/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Industri]
+      summary: Detail industri
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail industri diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Industri]
+      summary: Ubah industri
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'kode, nama'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Industri diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Kode industri (baru) sudah dipakai}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Industri]
+      summary: Soft delete industri
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      description: Ditolak jika masih direferensikan proyek/customer aktif.
+      responses:
+        '200': {description: Industri dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih digunakan Customer/Proyek}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/tags:
+    get:
+      tags: [Tags]
+      summary: Daftar tags proyek (paginated)
+      description: Tidak di-gate RBAC — data referensi bersama tanpa baris `modul` tersendiri.
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar tag diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Tags]
+      summary: Buat tag baru
+      description: Tidak di-gate RBAC.
+      requestBody:
+        required: true
+        description: 'kode (1-20), nama (1-100), unitId? (nullable, null = tag global)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Tag dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {description: Kombinasi kode+unit sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/tags/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Tags]
+      summary: Detail tag
+      description: Tidak di-gate RBAC.
+      responses:
+        '200': {description: Detail tag diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Tags]
+      summary: Ubah tag
+      description: Tidak di-gate RBAC.
+      requestBody:
+        required: true
+        description: 'kode, nama, unitId?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Tag diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Kombinasi kode+unit (baru) sudah dipakai}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Tags]
+      summary: Soft delete tag
+      description: Tidak di-gate RBAC. Ditolak bila masih dipakai proyek (proyek_tags).
+      responses:
+        '200': {description: Tag dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih digunakan Proyek}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/resource-tags:
+    get:
+      tags: [Resource Tags]
+      summary: Daftar resource tags (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - {name: status, in: query, schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar resource tag diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Resource Tags]
+      summary: Buat resource tag baru
+      x-roles-allowed: [Super Admin, Manager]
+      requestBody:
+        required: true
+        description: 'kode (1-20), nama (1-100), unitId?, deskripsi?, status? (default AKTIF)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Resource tag dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Kombinasi kode+unit sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/resource-tags/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Resource Tags]
+      summary: Detail resource tag
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail resource tag diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Resource Tags]
+      summary: Ubah resource tag
+      x-roles-allowed: [Super Admin, Manager]
+      requestBody:
+        required: true
+        description: 'kode, nama, unitId?, deskripsi?, status'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Resource tag diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Kombinasi kode+unit (baru) sudah dipakai}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Resource Tags]
+      summary: Soft delete resource tag
+      x-roles-allowed: [Super Admin, Manager]
+      description: Ditolak jika masih dipakai Resource Unit atau Tagihan.
+      responses:
+        '200': {description: Resource tag dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih digunakan Resource Unit/Tagihan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/kategori-surat:
+    get:
+      tags: [Kategori Surat]
+      summary: Daftar kategori surat (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: status, in: query, description: 'gunakan status=AKTIF untuk dropdown (FR-33)', schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar kategori surat diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Kategori Surat]
+      summary: Buat kategori surat baru (custom, mis. DR-10)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      description: '`isDefault` selalu false lewat endpoint ini, meski dikirim (diabaikan).'
+      requestBody:
+        required: true
+        description: 'kode (pola DR-XX), nama (maks 150), status? (default AKTIF)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Kategori surat dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Kode/nama sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/kategori-surat/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Kategori Surat]
+      summary: Detail kategori surat
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      responses:
+        '200': {description: Detail kategori surat diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Kategori Surat]
+      summary: Ubah kategori surat
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      description: '`isDefault` tidak dapat diubah lewat endpoint ini.'
+      requestBody:
+        required: true
+        description: 'kode, nama, status'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Kategori surat diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Kode/nama (baru) sudah dipakai}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Kategori Surat]
+      summary: Soft delete kategori surat
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      description: Ditolak jika kategori bawaan (isDefault=true) atau masih dipakai nomor_surat aktif.
+      responses:
+        '200': {description: Kategori surat dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Kategori bawaan, atau masih dipakai penomoran surat}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/jabatan:
+    get:
+      tags: [Jabatan]
+      summary: Daftar jabatan (sumber dropdown, tidak dipaginasi)
+      description: Tidak di-gate RBAC — data referensi bersama untuk form Karyawan.
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: status, in: query, description: 'kosong = hanya AKTIF', schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+      responses:
+        '200': {description: Daftar jabatan diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/karyawan/dropdown:
+    get:
+      tags: [Karyawan]
+      summary: Dropdown karyawan ringan (tanpa pagination)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - {name: status, in: query, description: 'kosong = hanya AKTIF', schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - {name: search, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Dropdown karyawan diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/karyawan:
+    get:
+      tags: [Karyawan]
+      summary: Daftar karyawan (paginated, TANPA subjectId)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, description: 'ILIKE nik/nama/email', schema: {type: string}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - {name: status, in: query, schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar karyawan diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Karyawan]
+      summary: Buat karyawan baru
+      x-roles-allowed: [Super Admin, Manager]
+      requestBody:
+        required: true
+        description: 'nik (1-30), nama (3-150), jabatanId, unitId, email, noHp?, tanggalMasuk?, status? (default AKTIF), subjectId? (opsional, tautan akun WSO2 IS)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Karyawan dibuat (response detail, termasuk subjectId)}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: NIK/email/subjectId sudah digunakan (subjectId SECURITY-SENSITIVE)}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/karyawan/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Karyawan]
+      summary: Detail karyawan (termasuk subjectId)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail karyawan diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Karyawan]
+      summary: Ubah karyawan
+      x-roles-allowed: [Super Admin, Manager]
+      requestBody:
+        required: true
+        description: 'nik, nama, jabatanId, unitId, email, noHp?, tanggalMasuk?, status, subjectId? (kirim null untuk lepas tautan)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Karyawan diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: NIK/email/subjectId (baru) sudah dipakai}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Karyawan]
+      summary: Soft delete karyawan
+      x-roles-allowed: [Super Admin, Manager]
+      description: Ditolak jika masih rujukan aktif pada Customer/Proyek/Team Member/Resource Unit.
+      responses:
+        '200': {description: Karyawan dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih menjadi rujukan aktif}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/customers:
+    get:
+      tags: [Customer]
+      summary: Daftar customer (paginated, id mentah)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: am_id, in: query, schema: {type: integer}}
+        - {name: industri_id, in: query, schema: {type: integer}}
+        - {name: status_peluang, in: query, schema: {type: string, enum: [PROSPEK, NEGOSIASI, DEAL, BATAL]}}
+        - {name: jenis_customer, in: query, schema: {type: string, enum: [ENTERPRISE, BANKING, BUMN, GOVERNMENT]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar customer diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Customer]
+      summary: Buat customer baru
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'nama (3-150), amId? (nullable), industriId?, statusPeluang? (default PROSPEK), jenisCustomer?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Customer dibuat (response detail, termasuk amNama/industriNama)}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/customers/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Customer]
+      summary: Detail customer (dengan amNama, industriNama)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail customer diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Customer]
+      summary: Ubah customer
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'nama, amId?, industriId?, statusPeluang, jenisCustomer?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Customer diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Customer]
+      summary: Soft delete customer
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      description: Ditolak jika masih memiliki Proyek/Contact/Kontrak aktif.
+      responses:
+        '200': {description: Customer dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih memiliki Proyek/Contact/Kontrak aktif}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/contacts:
+    get:
+      tags: [Contact]
+      summary: Daftar contact (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: customer_id, in: query, schema: {type: integer}}
+        - {name: search, in: query, schema: {type: string}}
+        - {name: tipe_kontak, in: query, schema: {type: string, enum: [UTAMA, AKTIF, PROSPEK]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar contact diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Contact]
+      summary: Buat contact baru
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'customerId, nama (1-100), jabatan?, email?, telepon?, tipeKontak? (default AKTIF)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Contact dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Email sudah dipakai contact lain pada customer sama}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/contacts/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Contact]
+      summary: Detail contact
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail contact diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Contact]
+      summary: Ubah contact
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'customerId, nama, jabatan?, email?, telepon?, tipeKontak'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Contact diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Email (baru) sudah dipakai contact lain}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Contact]
+      summary: Soft delete contact
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      description: Tidak ada dependency check (tidak ada response 409).
+      responses:
+        '200': {description: Contact dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /api/v1/master/kategori-finansial-keluar:
+    get:
+      tags: [Kategori Finansial Keluar]
+      summary: Daftar kategori finansial keluar (paginated)
+      description: Tidak di-gate RBAC — master finance bersama tanpa baris `modul` tersendiri.
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar kategori diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Kategori Finansial Keluar]
+      summary: Buat kategori baru
+      description: Tidak di-gate RBAC.
+      requestBody:
+        required: true
+        description: 'kode (1-20, unik), nama (1-100), status? (default AKTIF)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Kategori dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {description: Kode sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/kategori-finansial-keluar/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Kategori Finansial Keluar]
+      summary: Detail kategori
+      description: Tidak di-gate RBAC.
+      responses:
+        '200': {description: Detail kategori diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Kategori Finansial Keluar]
+      summary: Ubah kategori (tabel tanpa update-audit)
+      description: Tidak di-gate RBAC.
+      requestBody:
+        required: true
+        description: 'kode, nama, status'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Kategori diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Kode (baru) sudah dipakai}
+    delete:
+      tags: [Kategori Finansial Keluar]
+      summary: Hapus kategori (fisik — tabel tanpa soft-delete)
+      description: Tidak di-gate RBAC. Ditolak bila masih dipakai Pembayaran/Pengeluaran aktif.
+      responses:
+        '200': {description: Kategori dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih dipakai Pembayaran/Pengeluaran Perusahaan}
+  /api/v1/master/resource-unit:
+    get:
+      tags: [Resource Unit]
+      summary: Daftar resource unit (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - {name: status, in: query, schema: {type: string, enum: [AKTIF, TIDAK_AKTIF]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar resource unit diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Resource Unit]
+      summary: Buat resource unit (satu baris per unit)
+      x-roles-allowed: [Super Admin, Direktur, Manager]
+      requestBody:
+        required: true
+        description: 'unitId (unik), leadId? (karyawan), jumlah? (>=0), kapasitasTerpakai? (0..100), status? (default AKTIF)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Resource unit dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Unit sudah punya data resource unit}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/master/resource-unit/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Resource Unit]
+      summary: Detail resource unit
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail resource unit diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Resource Unit]
+      summary: Ubah resource unit
+      x-roles-allowed: [Super Admin, Direktur, Manager]
+      requestBody:
+        required: true
+        description: 'unitId, leadId?, jumlah?, kapasitasTerpakai?, status'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Resource unit diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Unit sudah punya data resource unit}
+    delete:
+      tags: [Resource Unit]
+      summary: Soft delete resource unit
+      x-roles-allowed: [Super Admin, Direktur, Manager]
+      responses:
+        '200': {description: Resource unit dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # ───────────────────────── e-Office ─────────────────────────
+  /api/v1/business/daftar-surat:
+    get:
+      tags: [Daftar Surat]
+      summary: Daftar surat (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: tahun, in: query, schema: {type: integer}}
+        - {name: kategori_surat_id, in: query, schema: {type: integer}}
+        - {name: proyek_id, in: query, schema: {type: integer}}
+        - {name: include_dibatalkan, in: query, schema: {type: boolean, default: false}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar surat diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Daftar Surat]
+      summary: Buat surat baru
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      requestBody:
+        required: true
+        description: 'kategoriSuratId, tanggal, tujuan (1-150), perihal (1-255), proyekId?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Surat dibuat; nomor digenerate atomik (advisory lock) per kategori+tahun}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/daftar-surat/preview-nomor:
+    get:
+      tags: [Daftar Surat]
+      summary: Preview nomor surat berikutnya
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: kategori_surat_id, in: query, required: true, schema: {type: integer}}
+        - {name: tanggal, in: query, required: true, schema: {type: string, format: date}}
+      responses:
+        '200': {description: Preview nomor surat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/business/daftar-surat/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Daftar Surat]
+      summary: Detail surat
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail surat diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Daftar Surat]
+      summary: Ubah surat
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      requestBody:
+        required: true
+        description: 'tanggal, tujuan, perihal, proyekId?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Surat diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Daftar Surat]
+      summary: Batalkan surat (bukan hapus fisik)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      requestBody:
+        required: true
+        description: 'alasanPembatalan (min 5 karakter, wajib)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Surat dibatalkan}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  # ───────────────────────── Sales Unit (Proyek) ─────────────────────────
+  /api/v1/business/proyek/dropdown:
+    get:
+      tags: [Proyek]
+      summary: Dropdown proyek (untuk form Daftar Surat)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters: [{name: search, in: query, schema: {type: string}}]
+      responses:
+        '200': {description: Dropdown proyek diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/business/proyek:
+    get:
+      tags: [Proyek]
+      summary: Daftar proyek (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: customer_id, in: query, schema: {type: integer}}
+        - {name: industri_id, in: query, schema: {type: integer}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: tahun, in: query, schema: {type: integer}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar proyek diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Proyek]
+      summary: Buat proyek baru
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      description: >-
+        `kodeProyek` digenerate backend (`{prefix}-{kodeUnit}-{tahun}-{urutan}`) secara atomik
+        per (unit, tahun). Status awal otomatis dicatat ke log_status.
+      requestBody:
+        required: true
+        description: 'customerId, industriId, unitId, namaProyek, nilaiProyek, picSalesId, status?, tahun, ...'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Proyek dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/proyek/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Proyek]
+      summary: Detail proyek
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail proyek diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Proyek]
+      summary: Ubah proyek
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      description: >-
+        `unitId`/`tahun` immutable (tertanam di kodeProyek). Perubahan `status` dicatat ke
+        log_status; transisi pertama ke DEAL_KONTRAK mengisi `tanggalDeal` otomatis.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Proyek diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Proyek]
+      summary: Soft delete proyek
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      responses:
+        '200': {description: Proyek dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih memiliki sub-resource/rujukan aktif}
+  /api/v1/business/proyek/{id}/log-status:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Proyek]
+      summary: Riwayat perubahan status proyek
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Riwayat status diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/business/proyek/{proyekId}/unit-share:
+    parameters: [{name: proyekId, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Unit Share]
+      summary: Daftar pembagian nilai proyek antar unit
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Daftar unit share diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [Unit Share]
+      summary: Tambah pembagian unit share
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      description: Total share tidak boleh melebihi nilaiProyek; satu unit unik per proyek.
+      requestBody:
+        required: true
+        description: 'unitId, nilaiShare, persentase?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Unit share dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Unit sudah punya share pada proyek ini, atau total melebihi nilaiProyek}
+  /api/v1/business/proyek/{proyekId}/unit-share/{id}:
+    parameters:
+      - {name: proyekId, in: path, required: true, schema: {type: integer}}
+      - {name: id, in: path, required: true, schema: {type: integer}}
+    put:
+      tags: [Unit Share]
+      summary: Ubah unit share
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'unitId, nilaiShare, persentase?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Unit share diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Total melebihi nilaiProyek}
+    delete:
+      tags: [Unit Share]
+      summary: Hapus unit share
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      responses:
+        '200': {description: Unit share dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/business/proyek/{proyekId}/team-member:
+    parameters: [{name: proyekId, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Team Member]
+      summary: Daftar penugasan karyawan pada proyek
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Daftar team member diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [Team Member]
+      summary: Tugaskan karyawan ke proyek
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      description: Status undangan email (`undanganStatus`) dikontrol backend.
+      requestBody:
+        required: true
+        description: 'karyawanId, roleId, tglMulai?, tglSelesai?, bobot?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Team member ditambahkan}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/business/proyek/{proyekId}/team-member/{id}:
+    parameters:
+      - {name: proyekId, in: path, required: true, schema: {type: integer}}
+      - {name: id, in: path, required: true, schema: {type: integer}}
+    put:
+      tags: [Team Member]
+      summary: Ubah penugasan team member
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'karyawanId, roleId, tglMulai?, tglSelesai?, bobot?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Team member diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Team Member]
+      summary: Lepas penugasan team member
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      responses:
+        '200': {description: Team member dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/business/proyek/{proyekId}/tags:
+    parameters: [{name: proyekId, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Proyek Tags]
+      summary: Daftar tag pada proyek
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Daftar proyek tags diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Proyek Tags]
+      summary: Ganti seluruh set tag proyek (replace wholesale)
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      requestBody:
+        required: true
+        description: 'tagIds: int[]'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Set tag disimpan}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/business/proyek/{proyekId}/tags/{tagId}:
+    parameters:
+      - {name: proyekId, in: path, required: true, schema: {type: integer}}
+      - {name: tagId, in: path, required: true, schema: {type: integer}}
+    post:
+      tags: [Proyek Tags]
+      summary: Pasang satu tag pada proyek (idempoten)
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      responses:
+        '200': {description: Tag terpasang}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Proyek Tags]
+      summary: Lepas satu tag dari proyek
+      x-roles-allowed: [Super Admin, Manager, Assistant Manager]
+      responses:
+        '200': {description: Tag terlepas}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # ───────────────────────── Kontrak ─────────────────────────
+  /api/v1/business/kontrak-payung/dropdown:
+    get:
+      tags: [Kontrak Payung]
+      summary: Dropdown kontrak payung
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: customer_id, in: query, schema: {type: integer}}
+        - {name: search, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Dropdown kontrak payung diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/business/kontrak-payung:
+    get:
+      tags: [Kontrak Payung]
+      summary: Daftar kontrak payung (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: customer_id, in: query, schema: {type: integer}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar kontrak payung diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Kontrak Payung]
+      summary: Buat kontrak payung baru
+      x-roles-allowed: [Super Admin, Manager]
+      requestBody:
+        required: true
+        description: 'customerId, noKontrakPayung (unik), namaKontrak, tanggalKontrak, tanggalMulai, tanggalSelesai, hargaRole? [{roleId, tipeHarga, nilai, keterangan?}]'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Kontrak payung dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: noKontrakPayung sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/kontrak-payung/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Kontrak Payung]
+      summary: Detail kontrak payung (termasuk hargaRole[])
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail kontrak payung diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Kontrak Payung]
+      summary: Ubah kontrak payung
+      x-roles-allowed: [Super Admin, Manager]
+      description: '`hargaRole` (bila dikirim) diganti seluruhnya (replace-on-update).'
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Kontrak payung diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: noKontrakPayung (baru) sudah dipakai}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Kontrak Payung]
+      summary: Soft delete kontrak payung
+      x-roles-allowed: [Super Admin, Manager]
+      description: Ditolak bila masih dipakai proyek/kontrak biasa.
+      responses:
+        '200': {description: Kontrak payung dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih dipakai Proyek/Kontrak Biasa}
+  /api/v1/business/kontrak-biasa/dropdown:
+    get:
+      tags: [Kontrak Biasa]
+      summary: Dropdown kontrak biasa
+      description: Tidak di-gate RBAC — belum ada baris `modul KONTRAK_BIASA`.
+      parameters:
+        - {name: customer_id, in: query, schema: {type: integer}}
+        - {name: search, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Dropdown kontrak biasa diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/business/kontrak-biasa:
+    get:
+      tags: [Kontrak Biasa]
+      summary: Daftar kontrak biasa (paginated)
+      description: Tidak di-gate RBAC.
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: customer_id, in: query, schema: {type: integer}}
+        - {name: kontrak_payung_id, in: query, schema: {type: integer}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar kontrak biasa diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Kontrak Biasa]
+      summary: Buat kontrak biasa baru
+      description: Tidak di-gate RBAC. Bisa berdiri sendiri atau di bawah kontrak payung (customer sama).
+      requestBody:
+        required: true
+        description: 'kontrakPayungId? (nullable), customerId, noKontrakBiasa (unik), namaKontrak, tanggalKontrak, nilai?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Kontrak biasa dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {description: noKontrakBiasa sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/kontrak-biasa/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Kontrak Biasa]
+      summary: Detail kontrak biasa
+      description: Tidak di-gate RBAC.
+      responses:
+        '200': {description: Detail kontrak biasa diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Kontrak Biasa]
+      summary: Ubah kontrak biasa (full-replace semantics)
+      description: 'Tidak di-gate RBAC. Field opsional yang diomit (kontrakPayungId, nilai) mengosongkan kolom tsb.'
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Kontrak biasa diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: noKontrakBiasa (baru) sudah dipakai}
+    delete:
+      tags: [Kontrak Biasa]
+      summary: Soft delete kontrak biasa
+      description: Tidak di-gate RBAC. Ditolak bila masih dipakai proyek.
+      responses:
+        '200': {description: Kontrak biasa dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Masih dipakai Proyek}
+
+  # ───────────────────────── Target / Revenue Unit ─────────────────────────
+  /api/v1/business/target-revenue-unit:
+    get:
+      tags: [Target Revenue Unit]
+      summary: Daftar target revenue per unit per tahun (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - {name: tahun, in: query, schema: {type: integer}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar target revenue unit diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Target Revenue Unit]
+      summary: Buat target revenue unit baru
+      x-roles-allowed: [Super Admin, Finance]
+      requestBody:
+        required: true
+        description: 'unitId, tahun, targetTw1?, targetTw2?, targetTw3?, targetTw4? (unik per unit+tahun)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Target revenue unit dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Kombinasi unit+tahun sudah ada}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/target-revenue-unit/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Target Revenue Unit]
+      summary: Detail target revenue unit
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail target revenue unit diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Target Revenue Unit]
+      summary: Ubah target revenue unit
+      x-roles-allowed: [Super Admin, Finance]
+      requestBody:
+        required: true
+        description: 'unitId, tahun, targetTw1?..targetTw4? (unik per unit+tahun, omit=0)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Target revenue unit diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Kombinasi unit+tahun (baru) sudah ada}
+    delete:
+      tags: [Target Revenue Unit]
+      summary: Hapus target revenue unit (hard delete — tabel tanpa soft-delete)
+      x-roles-allowed: [Super Admin, Finance]
+      responses:
+        '200': {description: Target revenue unit dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/business/revenue-unit:
+    get:
+      tags: [Revenue Unit]
+      summary: Laporan target vs realisasi per unit (4 TW + total + %)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      description: Read-only (report).
+      parameters:
+        - {name: tahun, in: query, schema: {type: integer}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: Laporan diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/revenue-unit/tw:
+    get:
+      tags: [Revenue Unit]
+      summary: Laporan per triwulan
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: triwulan, in: query, required: true, schema: {type: integer}}
+        - {name: tahun, in: query, schema: {type: integer}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: Laporan per TW diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/business/revenue-unit/chart:
+    get:
+      tags: [Revenue Unit]
+      summary: Data chart 4 titik (target vs realisasi per TW)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: tahun, in: query, schema: {type: integer}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: Data chart diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+  /api/v1/business/target-sales-unit:
+    get:
+      tags: [Target Sales Unit]
+      summary: Daftar target sales per unit per tahun (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - {name: tahun, in: query, schema: {type: integer}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar target sales unit diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Target Sales Unit]
+      summary: Buat target sales unit baru
+      x-roles-allowed: [Super Admin, Finance]
+      requestBody:
+        required: true
+        description: 'unitId, tahun, targetTw1?..targetTw4? (unik per unit+tahun)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Target sales unit dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: Kombinasi unit+tahun sudah ada}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/target-sales-unit/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Target Sales Unit]
+      summary: Detail target sales unit
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail target sales unit diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Target Sales Unit]
+      summary: Ubah target sales unit
+      x-roles-allowed: [Super Admin, Finance]
+      requestBody:
+        required: true
+        description: 'unitId, tahun, targetTw1?..targetTw4? (omit=0)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Target sales unit diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Kombinasi unit+tahun (baru) sudah ada}
+    delete:
+      tags: [Target Sales Unit]
+      summary: Hapus target sales unit (hard delete — tabel tanpa soft-delete)
+      x-roles-allowed: [Super Admin, Finance]
+      responses:
+        '200': {description: Target sales unit dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/business/sales-matrix:
+    get:
+      tags: [Sales Matrix]
+      summary: Pencapaian sales per unit (target vs realisasi deal-basis, 4 TW + total + %)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      description: Read-only. Realisasi = `v_realisasi_sales_tw` (nilai_bersih proyek DEAL_KONTRAK).
+      parameters:
+        - {name: tahun, in: query, schema: {type: integer}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: Sales matrix diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/sales-matrix/tw:
+    get:
+      tags: [Sales Matrix]
+      summary: Pencapaian sales per triwulan
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: triwulan, in: query, required: true, schema: {type: integer}}
+        - {name: tahun, in: query, schema: {type: integer}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: Sales matrix per TW diambil}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/business/sales-matrix/chart:
+    get:
+      tags: [Sales Matrix]
+      summary: Data chart 4 titik (target vs realisasi sales per TW)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: tahun, in: query, schema: {type: integer}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: Data chart diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/business/cashflow:
+    get:
+      tags: [Cashflow]
+      summary: Laporan arus kas bulanan company-wide (12 bulan + total + posisi kas)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      description: Read-only. `tahun` default tahun berjalan.
+      parameters: [{name: tahun, in: query, schema: {type: integer}}]
+      responses:
+        '200': {description: Cashflow diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/business/cashflow/chart:
+    get:
+      tags: [Cashflow]
+      summary: Chart arus kas 12 bulan (inflow vs outflow)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters: [{name: tahun, in: query, schema: {type: integer}}]
+      responses:
+        '200': {description: Chart cashflow diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
+  # ───────────────────────── Pengaturan ─────────────────────────
+  /api/v1/profil-saya:
+    get:
+      tags: [Profil Saya]
+      summary: Profil karyawan milik sendiri
+      description: >-
+        Tidak di-gate RBAC — self-service, karyawan di-resolve dari klaim `sub` token
+        (`karyawan.subject_id`). 404 bila subjectId belum ditautkan admin.
+      responses:
+        '200': {description: Profil diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Profil Saya]
+      summary: Update kontak (email/noHp saja)
+      description: Tidak di-gate RBAC. Identitas (nik/nama/jabatan/unit/status) tetap dikelola admin lewat Karyawan.
+      requestBody:
+        required: true
+        description: 'email, noHp?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Profil diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/akun-saya:
+    get:
+      tags: [Akun Saya]
+      summary: Identitas login WSO2 IS milik pemanggil (prefill form)
+      description: >-
+        Tidak di-gate RBAC — self-service, target selalu diri sendiri (di-resolve dari klaim `sub`
+        token). Berbeda dari Profil Saya (kontak HR lokal); ini identitas IS via SCIM2.
+      responses:
+        '200': {description: Akun diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Akun Saya]
+      summary: Update data akun sendiri (tanpa password/role)
+      description: >-
+        Tidak di-gate RBAC. Semua field opsional (min. satu). Password diubah lewat endpoint
+        terpisah `/api/v1/akun-saya/password`; role tidak bisa diubah di sini.
+      requestBody:
+        required: true
+        description: 'email?, firstName?, lastName?, telepon?, organization?, country?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Akun diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/akun-saya/password:
+    put:
+      tags: [Akun Saya]
+      summary: Ganti password sendiri (terpisah dari update data)
+      description: Tidak di-gate RBAC — target selalu diri sendiri. Dijalankan via SCIM2 (Super Admin IS).
+      requestBody:
+        required: true
+        description: 'password (>=6)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Password diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/menu-saya:
+    get:
+      tags: [Menu Saya]
+      summary: Pohon menu navigasi terfilter sesuai role pemanggil
+      description: >-
+        Tidak di-gate RBAC — self-service. Mengembalikan pohon menu yang di-assign ke role
+        pemanggil (dan berstatus AKTIF); role di-resolve dari klaim `swaportal_role_id`, bukan
+        id dari client. Cache-aside `role:{id}:menu`. 403 bila akun belum punya role.
+      responses:
+        '200': {description: Menu diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/notifikasi/unread-count:
+    get:
+      tags: [Notifikasi]
+      summary: Jumlah notifikasi belum dibaca
+      description: Tidak di-gate RBAC — self-service.
+      responses:
+        '200': {description: Jumlah diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/notifikasi:
+    get:
+      tags: [Notifikasi]
+      summary: Daftar notifikasi (filter kategori/is_read)
+      description: Tidak di-gate RBAC — self-service.
+      parameters:
+        - {name: kategori, in: query, schema: {type: string}}
+        - {name: is_read, in: query, schema: {type: boolean}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar notifikasi diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/notifikasi/read-all:
+    put:
+      tags: [Notifikasi]
+      summary: Tandai semua notifikasi sudah dibaca
+      description: Tidak di-gate RBAC.
+      responses:
+        '200': {description: Semua ditandai dibaca}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/notifikasi/{id}/read:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    put:
+      tags: [Notifikasi]
+      summary: Tandai satu notifikasi sudah dibaca
+      description: Tidak di-gate RBAC.
+      responses:
+        '200': {description: Ditandai dibaca}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/konfigurasi-sistem:
+    get:
+      tags: [Konfigurasi Sistem]
+      summary: Daftar registry sys_config
+      x-roles-allowed: [Super Admin]
+      parameters: [{name: search, in: query, schema: {type: string}}]
+      responses:
+        '200': {description: Daftar konfigurasi diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/konfigurasi-sistem/{konfigKey}:
+    parameters: [{name: konfigKey, in: path, required: true, schema: {type: string}}]
+    get:
+      tags: [Konfigurasi Sistem]
+      summary: Detail satu konfigurasi
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Detail konfigurasi diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Konfigurasi Sistem]
+      summary: Ubah value konfigurasi
+      x-roles-allowed: [Super Admin]
+      description: Hanya `value` yang bisa diubah — tidak ada create/delete key baru.
+      requestBody:
+        required: true
+        description: 'value (nullable)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Konfigurasi diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/manajemen-user:
+    get:
+      tags: [Manajemen User]
+      summary: Daftar user WSO2 IS (mirror user_cache, LEFT JOIN karyawan)
+      x-roles-allowed: [Super Admin]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar user diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Manajemen User]
+      summary: Provision user baru via SCIM2 (+ write-through user_cache)
+      x-roles-allowed: [Super Admin]
+      description: >-
+        Menulis ke WSO2 IS lewat SCIM2 (bukan DB ini), lalu mirror ke user_cache. BELUM
+        terverifikasi terhadap WSO2 IS nyata — lihat README (Manajemen User).
+      requestBody:
+        required: true
+        description: 'userName, email, nama, password (>=6), roleId? (ke swaportal_role_id)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: User dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/manajemen-user/{subjectId}:
+    parameters: [{name: subjectId, in: path, required: true, schema: {type: string}}]
+    get:
+      tags: [Manajemen User]
+      summary: Detail satu user WSO2 IS (+ karyawan tertaut, bila ada)
+      x-roles-allowed: [Super Admin]
+      responses:
+        '200': {description: Detail user diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Manajemen User]
+      summary: Ubah profil user (nama/email) via SCIM2 (+ write-through)
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'nama, email'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: User diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/manajemen-user/{subjectId}/role:
+    parameters: [{name: subjectId, in: path, required: true, schema: {type: string}}]
+    put:
+      tags: [Manajemen User]
+      summary: Set/clear portal role (swaportal_role_id) via SCIM2
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'roleId (nullable — () untuk mengosongkan)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Role user diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/manajemen-user/{subjectId}/status:
+    parameters: [{name: subjectId, in: path, required: true, schema: {type: string}}]
+    put:
+      tags: [Manajemen User]
+      summary: Enable/disable akun (SCIM active) via SCIM2 (+ write-through)
+      x-roles-allowed: [Super Admin]
+      requestBody:
+        required: true
+        description: 'active (boolean)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Status user diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/manajemen-user/{subjectId}/akun:
+    parameters: [{name: subjectId, in: path, required: true, schema: {type: string}}]
+    get:
+      tags: [Manajemen User]
+      summary: Identitas WSO2 IS user lain (prefill form Super Admin)
+      x-roles-allowed: [Super Admin]
+      description: Dibaca via SCIM2 sebagai Super Admin IS (Basic Auth).
+      responses:
+        '200': {description: Akun user diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Manajemen User]
+      summary: Super Admin ubah data akun user lain (tanpa password)
+      x-roles-allowed: [Super Admin]
+      description: >-
+        Via SCIM2 sebagai Super Admin IS (Basic Auth). Semua field opsional (min. satu). Password
+        direset lewat endpoint terpisah `/api/v1/manajemen-user/{subjectId}/password`. `roleId` hanya
+        set (untuk clear pakai `/role` dengan roleId null).
+      requestBody:
+        required: true
+        description: 'email?, firstName?, lastName?, telepon?, organization?, country?, roleId?, groupId?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Akun user diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/manajemen-user/{subjectId}/password:
+    parameters: [{name: subjectId, in: path, required: true, schema: {type: string}}]
+    put:
+      tags: [Manajemen User]
+      summary: Super Admin reset password user lain (terpisah)
+      x-roles-allowed: [Super Admin]
+      description: Via SCIM2 sebagai Super Admin IS (Basic Auth). Operasi terpisah dari update data `/akun`.
+      requestBody:
+        required: true
+        description: 'password (>=6)'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Password user diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  # ───────────────────────── Audit Log ─────────────────────────
+  /api/v1/audit-log:
+    get:
+      tags: [Audit Log]
+      summary: Daftar audit log (append-only, ditulis internal oleh service lain)
+      x-roles-allowed: [Super Admin, Direktur]
+      parameters:
+        - {name: table_name, in: query, schema: {type: string}}
+        - {name: aksi, in: query, schema: {type: string}}
+        - {name: aktor, in: query, schema: {type: string}}
+        - {name: record_id, in: query, schema: {type: string}}
+        - {name: date_from, in: query, schema: {type: string, format: date}}
+        - {name: date_to, in: query, schema: {type: string, format: date}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar audit log diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/audit-log/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Audit Log]
+      summary: Detail satu entri audit log
+      x-roles-allowed: [Super Admin, Direktur]
+      responses:
+        '200': {description: Detail audit log diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # ───────────────────────── Finansial ─────────────────────────
+  /api/v1/finance/tagihan:
+    get:
+      tags: [Tagihan]
+      summary: Daftar tagihan (paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: proyek_id, in: query, schema: {type: integer}}
+        - {name: status_aktif, in: query, schema: {type: string, enum: [RENCANA, BAST, KIRIM_TAGIHAN, LUNAS, PELUANG, TIDAK_TERTAGIH]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar tagihan diambil (termasuk totalPencairan terhitung)}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Tagihan]
+      summary: Buat tagihan baru
+      x-roles-allowed: [Super Admin, Finance]
+      description: Status awal otomatis dicatat ke status_tagihan (mirip log_status proyek).
+      requestBody:
+        required: true
+        description: 'proyekId, tanggalTagihan, noTagihan (unik), nilaiTagihan, statusAktif? (default RENCANA), nilaiDpp?, ppn?, pph?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Tagihan dibuat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: noTagihan sudah digunakan}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/finance/tagihan/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Tagihan]
+      summary: Detail tagihan
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail tagihan diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Tagihan]
+      summary: Ubah tagihan
+      x-roles-allowed: [Super Admin, Finance]
+      description: Perubahan `statusAktif` dicatat ke status_tagihan (transaksional, dengan row lock).
+      requestBody:
+        required: true
+        description: 'proyekId, tanggalTagihan, noTagihan, statusAktif, statusKomentar?, nilaiTagihan, nilaiDpp?, ppn?, pph?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Tagihan diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: noTagihan (baru) sudah dipakai}
+    delete:
+      tags: [Tagihan]
+      summary: Soft delete tagihan
+      x-roles-allowed: [Super Admin, Finance]
+      responses:
+        '200': {description: Tagihan dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/finance/tagihan/{id}/status-history:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Tagihan]
+      summary: Riwayat perubahan status_aktif tagihan
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Riwayat status diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/finance/tagihan/{tagihanId}/pencairan:
+    parameters: [{name: tagihanId, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Pencairan]
+      summary: Daftar pencairan pada tagihan ini
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Daftar pencairan diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [Pencairan]
+      summary: Catat pencairan baru
+      x-roles-allowed: [Super Admin, Finance]
+      description: Total pencairan aktif (PARSIAL/FINAL) tidak boleh melebihi nilaiTagihan.
+      requestBody:
+        required: true
+        description: 'tanggalPencairan, nilai (>0), status (PARSIAL/FINAL/DIBATALKAN), keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Pencairan dicatat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Total pencairan akan melebihi nilaiTagihan}
+  /api/v1/finance/tagihan/{tagihanId}/pencairan/{id}:
+    parameters:
+      - {name: tagihanId, in: path, required: true, schema: {type: integer}}
+      - {name: id, in: path, required: true, schema: {type: integer}}
+    put:
+      tags: [Pencairan]
+      summary: Ubah pencairan
+      x-roles-allowed: [Super Admin, Finance]
+      requestBody:
+        required: true
+        description: 'tanggalPencairan, nilai, status, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Pencairan diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Total pencairan akan melebihi nilaiTagihan}
+    delete:
+      tags: [Pencairan]
+      summary: Soft delete pencairan
+      x-roles-allowed: [Super Admin, Finance]
+      responses:
+        '200': {description: Pencairan dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/finance/pembayaran:
+    get:
+      tags: [Pembayaran]
+      summary: Daftar pembayaran (cash-out proyek, paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: proyek_id, in: query, schema: {type: integer}}
+        - {name: kategori_id, in: query, schema: {type: integer}}
+        - {name: status, in: query, schema: {type: string, enum: [PENGAJUAN, APPROVED, REJECTED]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar pembayaran diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Pembayaran]
+      summary: Ajukan pembayaran baru (selalu status PENGAJUAN)
+      x-roles-allowed: [Super Admin, Finance]
+      requestBody:
+        required: true
+        description: 'proyekId, kategoriId, nilai (>0), tanggalPengajuan, tanggalRealisasi?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Pembayaran diajukan}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/finance/pembayaran/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Pembayaran]
+      summary: Detail pembayaran
+      x-roles-allowed: [Super Admin, Direktur, Manager, Assistant Manager, Finance]
+      responses:
+        '200': {description: Detail pembayaran diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Pembayaran]
+      summary: Ubah pembayaran
+      x-roles-allowed: [Super Admin, Finance]
+      description: Hanya bisa diubah selagi PENGAJUAN/REJECTED; APPROVED terkunci. Edit REJECTED reset ke PENGAJUAN.
+      requestBody:
+        required: true
+        description: 'proyekId, kategoriId, nilai, tanggalPengajuan, tanggalRealisasi?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Pembayaran diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Pembayaran sudah APPROVED, tidak dapat diubah}
+    delete:
+      tags: [Pembayaran]
+      summary: Soft delete pembayaran
+      x-roles-allowed: [Super Admin, Finance]
+      responses:
+        '200': {description: Pembayaran dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/finance/pembayaran/{id}/approve:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    put:
+      tags: [Pembayaran]
+      summary: Approve pembayaran (hanya dari status PENGAJUAN)
+      x-roles-allowed: [Super Admin, Direktur, Finance]
+      description: >-
+        `canApprove` bit dicek per role; untuk Direktur, otorisasi TAMBAHAN (unit_id =
+        "Direktur Utama") adalah keputusan skema tapi BELUM ditegakkan di service layer
+        (TODO(role-authz)) — lihat README bagian Finansial.
+      requestBody:
+        required: true
+        description: 'tanggalRealisasi?, catatan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Pembayaran di-approve}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Bukan status PENGAJUAN (mungkin sudah berubah)}
+  /api/v1/finance/pembayaran/{id}/reject:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    put:
+      tags: [Pembayaran]
+      summary: Reject pembayaran (hanya dari status PENGAJUAN)
+      x-roles-allowed: [Super Admin, Direktur, Finance]
+      requestBody:
+        required: true
+        description: 'catatan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Pembayaran di-reject}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Bukan status PENGAJUAN (mungkin sudah berubah)}
+  /api/v1/finance/pengeluaran-perusahaan:
+    get:
+      tags: [Pengeluaran Perusahaan]
+      summary: Daftar pengeluaran perusahaan (cash-out internal unit, paginated)
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: unit_id, in: query, schema: {type: integer}}
+        - {name: kategori_id, in: query, schema: {type: integer}}
+        - {name: status, in: query, schema: {type: string, enum: [PENGAJUAN, APPROVED, REJECTED]}}
+        - *pageParam
+        - *limitParam
+      responses:
+        '200': {description: Daftar pengeluaran diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Pengeluaran Perusahaan]
+      summary: Ajukan pengeluaran baru (selalu status PENGAJUAN)
+      x-roles-allowed: [Super Admin, Finance]
+      requestBody:
+        required: true
+        description: 'unitId, kategoriId, nilai (>0), tanggalPengajuan, tanggalRealisasi?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Pengeluaran diajukan}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/v1/finance/pengeluaran-perusahaan/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Pengeluaran Perusahaan]
+      summary: Detail pengeluaran
+      x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
+      responses:
+        '200': {description: Detail pengeluaran diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Pengeluaran Perusahaan]
+      summary: Ubah pengeluaran
+      x-roles-allowed: [Super Admin, Finance]
+      description: Hanya bisa diubah selagi PENGAJUAN/REJECTED; APPROVED terkunci. Edit REJECTED reset ke PENGAJUAN.
+      requestBody:
+        required: true
+        description: 'unitId, kategoriId, nilai, tanggalPengajuan, tanggalRealisasi?, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Pengeluaran diperbarui}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Pengeluaran sudah APPROVED, tidak dapat diubah}
+    delete:
+      tags: [Pengeluaran Perusahaan]
+      summary: Soft delete pengeluaran
+      x-roles-allowed: [Super Admin, Finance]
+      responses:
+        '200': {description: Pengeluaran dihapus}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/finance/pengeluaran-perusahaan/{id}/approve:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    put:
+      tags: [Pengeluaran Perusahaan]
+      summary: Approve pengeluaran (hanya dari status PENGAJUAN)
+      x-roles-allowed: [Super Admin, Direktur, Finance]
+      description: >-
+        Sama seperti approve Pembayaran — otorisasi unit "Direktur Utama" untuk Direktur BELUM
+        ditegakkan di service layer (TODO(role-authz)).
+      requestBody:
+        required: true
+        description: 'tanggalRealisasi?, catatan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Pengeluaran di-approve}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Bukan status PENGAJUAN}
+  /api/v1/finance/pengeluaran-perusahaan/{id}/reject:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    put:
+      tags: [Pengeluaran Perusahaan]
+      summary: Reject pengeluaran (hanya dari status PENGAJUAN)
+      x-roles-allowed: [Super Admin, Direktur, Finance]
+      requestBody:
+        required: true
+        description: 'catatan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '200': {description: Pengeluaran di-reject}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Bukan status PENGAJUAN}
+  /api/v1/finance/saldo-awal-kas/posisi-kas:
+    get:
+      tags: [Saldo Awal Kas]
+      summary: Posisi kas terkini (view v_posisi_kas — saldo awal terakhir + inflow − outflow)
+      x-roles-allowed: [Super Admin, Finance]
+      responses:
+        '200': {description: Posisi kas diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/finance/saldo-awal-kas:
+    get:
+      tags: [Saldo Awal Kas]
+      summary: Daftar saldo awal kas (append-only, paginated)
+      x-roles-allowed: [Super Admin, Finance]
+      parameters: [*pageParam, *limitParam]
+      responses:
+        '200': {description: Daftar saldo awal kas diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Saldo Awal Kas]
+      summary: Catat saldo awal kas baru
+      x-roles-allowed: [Super Admin, Finance]
+      description: Append-only — tidak ada endpoint update/delete.
+      requestBody:
+        required: true
+        description: 'tanggal, nilai, keterangan?'
+        content: {application/json: {schema: {type: object}}}
+      responses:
+        '201': {description: Saldo awal kas dicatat}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/finance/saldo-awal-kas/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get:
+      tags: [Saldo Awal Kas]
+      summary: Detail satu baris saldo awal kas
+      x-roles-allowed: [Super Admin, Finance]
+      responses:
+        '200': {description: Detail diambil}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Access Token WSO2 IS, divalidasi Ballerina deklaratif via `@http:ServiceConfig` (JWKS:
+        signature, issuer, audience, expiry). Header `apikey` (WSO2 APIM) tidak didefinisikan
+        di kontrak ini (divalidasi API Gateway).
+  responses:
+    BadRequest:
+      description: Validasi gagal (lihat `errors.message` untuk detail field)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: {type: boolean, example: false}
+              message: {type: string}
+              data: {nullable: true, example: null}
+              errors:
+                type: object
+                nullable: true
+                properties:
+                  code: {type: string, example: VALIDATION_ERROR}
+                  message: {type: string}
+                  details: {nullable: true}
+              meta:
+                type: object
+                properties: {timestamp: {type: string, format: date-time}}
+    Unauthorized:
+      description: >-
+        Tidak terautentikasi. Dua bentuk body mungkin terjadi: (1) PALING UMUM — ditolak guard
+        JWT sebelum resource dijalankan, format bawaan framework Ballerina (BUKAN amplop
+        ApiResponse): `{timestamp, status, reason, message, path, method}`; (2) JARANG — dari
+        `subjectFromAccessToken()` di kode aplikasi, memakai amplop ApiResponse standar
+        (`errors.code = UNAUTHORIZED`). FE sebaiknya bercabang dari HTTP status 401 saja.
+      content:
+        application/json:
+          schema: {type: object}
+    Forbidden:
+      description: >-
+        Ditolak `PermissionInterceptor` — role pemanggil tidak memiliki bit CRUD/approve/export
+        yang dibutuhkan pada modul ini (lihat `x-roles-allowed` operation ini untuk role yang
+        diizinkan). `errors.code = FORBIDDEN`.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: {type: boolean, example: false}
+              message: {type: string, example: 'Anda tidak memiliki hak ... pada modul ...'}
+              data: {nullable: true, example: null}
+              errors:
+                type: object
+                properties:
+                  code: {type: string, example: FORBIDDEN}
+                  message: {type: string}
+              meta:
+                type: object
+                properties: {timestamp: {type: string, format: date-time}}
+    NotFound:
+      description: Resource tidak ditemukan (`errors.code = NOT_FOUND`)
+      content:
+        application/json:
+          schema: {type: object}
+    InternalError:
+      description: Error tak terduga di server (`errors.code = INTERNAL_ERROR`)
+      content:
+        application/json:
+          schema: {type: object}

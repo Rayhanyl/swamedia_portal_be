@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: swamedia_portal_postgres
+    environment:
+      POSTGRES_DB: swamedia_portal_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in a .env file (see .env.example) — must match dbPassword in Config.docker.toml}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Runs once against an empty data volume to create the full schema (tables, seed data,
+      # views, functions). Delete the postgres-data volume to re-run it from scratch.
+      - ./documentation/database/swamedia_portal_schema_v2.1.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d swamedia_portal_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: swamedia_portal_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: swamedia_portal_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      # Copy Config.docker.toml.example -> Config.docker.toml and fill in real credentials
+      # (dbHost/redisHost in the example already point at the service names below).
+      - ./Config.docker.toml:/home/ballerina/app/Config.toml:ro
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
