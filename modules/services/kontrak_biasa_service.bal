@@ -88,6 +88,7 @@ public function createKontrakBiasa(models:KontrakBiasaCreateRequest payload, str
         }
         return created;
     }
+    logAudit("kontrak_biasa", created.id.toString(), "CREATE", (), created.toJson(), subject);
     return created;
 }
 
@@ -136,6 +137,7 @@ public function updateKontrakBiasa(int id, models:KontrakBiasaUpdateRequest payl
     if updated is () {
         return utils:notFoundError("Kontrak biasa dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("kontrak_biasa", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -157,6 +159,7 @@ public function deleteKontrakBiasa(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Kontrak biasa dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("kontrak_biasa", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

@@ -1808,10 +1808,11 @@ service /api/v1/business/proyek on apiListener {
 
     # PUT /api/v1/business/proyek/{proyekId}/tags — replace the proyek's entire tag set.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function put [int proyekId]/tags(@http:Payload models:ProyekTagsUpdateRequest payload)
-            returns http:Response {
+    resource function put [int proyekId]/tags(@http:Header {name: "Authorization"} string? authorization,
+            @http:Payload models:ProyekTagsUpdateRequest payload) returns http:Response {
         do {
-            models:ProyekTag[] items = check services:replaceProyekTags(proyekId, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:ProyekTag[] items = check services:replaceProyekTags(proyekId, payload, subject);
             return successHttp(http:STATUS_OK, items, "Tag proyek berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to replace proyek tags");
@@ -1820,9 +1821,11 @@ service /api/v1/business/proyek on apiListener {
 
     # POST /api/v1/business/proyek/{proyekId}/tags/{tagId} — attach a single tag (idempotent).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function post [int proyekId]/tags/[int tagId]() returns http:Response {
+    resource function post [int proyekId]/tags/[int tagId](
+            @http:Header {name: "Authorization"} string? authorization) returns http:Response {
         do {
-            models:ProyekTag[] items = check services:attachProyekTag(proyekId, tagId);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:ProyekTag[] items = check services:attachProyekTag(proyekId, tagId, subject);
             return successHttp(http:STATUS_OK, items, "Tag berhasil ditambahkan ke proyek");
         } on fail error err {
             return errorHttp(err, "Failed to attach proyek tag");
@@ -1831,9 +1834,11 @@ service /api/v1/business/proyek on apiListener {
 
     # DELETE /api/v1/business/proyek/{proyekId}/tags/{tagId} — detach a single tag.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int proyekId]/tags/[int tagId]() returns http:Response {
+    resource function delete [int proyekId]/tags/[int tagId](
+            @http:Header {name: "Authorization"} string? authorization) returns http:Response {
         do {
-            check services:detachProyekTag(proyekId, tagId);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:detachProyekTag(proyekId, tagId, subject);
             return successHttp(http:STATUS_OK, (), "Tag berhasil dilepas dari proyek");
         } on fail error err {
             return errorHttp(err, "Failed to detach proyek tag");
@@ -2149,8 +2154,8 @@ service /api/v1/business/target\-revenue\-unit on apiListener {
     resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
             returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            check services:deleteTargetRevenueUnit(id);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:deleteTargetRevenueUnit(id, subject);
             return successHttp(http:STATUS_OK, (), "Target revenue unit berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete target revenue unit");
@@ -2917,8 +2922,8 @@ service /api/v1/finance/tagihan on apiListener {
             @http:Header {name: "Authorization"} string? authorization,
             @http:Payload models:PencairanUpdateRequest payload) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            models:PencairanTagihan updated = check services:updatePencairan(tagihanId, id, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:PencairanTagihan updated = check services:updatePencairan(tagihanId, id, payload, subject);
             return successHttp(http:STATUS_OK, updated, "Pencairan berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update pencairan");
@@ -2930,8 +2935,8 @@ service /api/v1/finance/tagihan on apiListener {
     resource function delete [int tagihanId]/pencairan/[int id](
             @http:Header {name: "Authorization"} string? authorization) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            check services:deletePencairan(tagihanId, id);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:deletePencairan(tagihanId, id, subject);
             return successHttp(http:STATUS_OK, (), "Pencairan berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete pencairan");
@@ -3440,8 +3445,8 @@ service /api/v1/business/target\-sales\-unit on apiListener {
     resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
             returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            check services:deleteTargetSalesUnit(id);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:deleteTargetSalesUnit(id, subject);
             return successHttp(http:STATUS_OK, (), "Target sales unit berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete target sales unit");

@@ -54,7 +54,9 @@ public function createSaldoAwalKas(models:SaldoAwalKasCreateRequest payload, str
         returns models:SaldoAwalKas|error {
     string tanggal = check validateRequiredDate(payload.tanggal, "Tanggal");
     string? keterangan = normalizeProyekText(payload?.keterangan);
-    return repositories:insertSaldoAwalKas(tanggal, payload.nilai, keterangan, subject);
+    models:SaldoAwalKas created = check repositories:insertSaldoAwalKas(tanggal, payload.nilai, keterangan, subject);
+    logAudit("saldo_awal_kas", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Reads the current cash position (from the `v_posisi_kas` view).

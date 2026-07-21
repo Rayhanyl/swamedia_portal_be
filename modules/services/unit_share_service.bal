@@ -38,8 +38,10 @@ public function createUnitShare(int proyekId, models:UnitShareCreateRequest payl
     }
     check ensureShareTotalFits(proyekId, payload.nilaiShare, proyek.nilaiProyek, 0);
 
-    return repositories:insertUnitShare(proyekId, payload.unitId, payload.nilaiShare, payload?.persentase,
-            subject);
+    models:UnitShare created = check repositories:insertUnitShare(proyekId, payload.unitId, payload.nilaiShare,
+            payload?.persentase, subject);
+    logAudit("unit_share", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates a share. Same validations as create; the share being updated is excluded from both the
@@ -72,6 +74,7 @@ public function updateUnitShare(int proyekId, int id, models:UnitShareUpdateRequ
     if updated is () {
         return utils:notFoundError("Unit share dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("unit_share", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -83,10 +86,13 @@ public function updateUnitShare(int proyekId, int id, models:UnitShareUpdateRequ
 # + return - (), a NOT_FOUND AppError, or an error
 public function deleteUnitShare(int proyekId, int id, string subject) returns error? {
     _ = check requireProyek(proyekId);
+    // Read the row before deleting purely so the audit entry can record what was removed.
+    models:UnitShare? existing = check repositories:findUnitShareById(id, proyekId);
     boolean deleted = check repositories:softDeleteUnitShare(id, proyekId, subject);
     if !deleted {
         return utils:notFoundError("Unit share dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("unit_share", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject);
     return ();
 }
 

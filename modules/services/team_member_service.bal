@@ -49,8 +49,10 @@ public function createTeamMember(int proyekId, models:TeamMemberCreateRequest pa
         return utils:conflictError("Karyawan sudah ditugaskan pada proyek ini untuk tanggal mulai yang sama");
     }
 
-    return repositories:insertTeamMember(proyekId, payload.karyawanId, payload.roleId, tglMulai, tglSelesai,
-            payload?.bobot, keterangan, subject);
+    models:TeamMember created = check repositories:insertTeamMember(proyekId, payload.karyawanId, payload.roleId,
+            tglMulai, tglSelesai, payload?.bobot, keterangan, subject);
+    logAudit("team_member", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates a team member. Same validations as create; the member being updated is excluded from the
@@ -89,6 +91,7 @@ public function updateTeamMember(int proyekId, int id, models:TeamMemberUpdateRe
     if updated is () {
         return utils:notFoundError("Team member dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("team_member", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -100,10 +103,13 @@ public function updateTeamMember(int proyekId, int id, models:TeamMemberUpdateRe
 # + return - (), a NOT_FOUND AppError, or an error
 public function deleteTeamMember(int proyekId, int id, string subject) returns error? {
     _ = check requireProyek(proyekId);
+    // Read the row before deleting purely so the audit entry can record what was removed.
+    models:TeamMember? existing = check repositories:findTeamMemberById(id, proyekId);
     boolean deleted = check repositories:softDeleteTeamMember(id, proyekId, subject);
     if !deleted {
         return utils:notFoundError("Team member dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("team_member", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject);
     return ();
 }
 

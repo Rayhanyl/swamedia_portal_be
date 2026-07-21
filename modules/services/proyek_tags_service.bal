@@ -24,14 +24,18 @@ public function getProyekTags(int proyekId) returns models:ProyekTag[]|error {
 #
 # + proyekId - the parent proyek id
 # + payload - the desired complete set of tag ids
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the resulting attached tags, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function replaceProyekTags(int proyekId, models:ProyekTagsUpdateRequest payload)
+public function replaceProyekTags(int proyekId, models:ProyekTagsUpdateRequest payload, string subject)
         returns models:ProyekTag[]|error {
     _ = check requireProyek(proyekId);
 
     int[] uniqueIds = check validateAndDedupTagIds(payload.tagIds);
+    models:ProyekTag[] before = check repositories:findTagsByProyek(proyekId);
     check repositories:replaceProyekTags(proyekId, uniqueIds);
-    return repositories:findTagsByProyek(proyekId);
+    models:ProyekTag[] after = check repositories:findTagsByProyek(proyekId);
+    logAudit("proyek_tags", proyekId.toString(), "UPDATE", before.toJson(), after.toJson(), subject);
+    return after;
 }
 
 # Attaches a single tag to a proyek (idempotent — attaching an already-attached tag is a no-op).
@@ -39,11 +43,13 @@ public function replaceProyekTags(int proyekId, models:ProyekTagsUpdateRequest p
 #
 # + proyekId - the parent proyek id
 # + tagsId - the tag id to attach
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the resulting attached tags, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function attachProyekTag(int proyekId, int tagsId) returns models:ProyekTag[]|error {
+public function attachProyekTag(int proyekId, int tagsId, string subject) returns models:ProyekTag[]|error {
     _ = check requireProyek(proyekId);
     check ensureTagExists(tagsId);
     check repositories:attachProyekTag(proyekId, tagsId);
+    logAudit("proyek_tags", proyekId.toString(), "CREATE", (), {"tagsId": tagsId}, subject);
     return repositories:findTagsByProyek(proyekId);
 }
 
@@ -51,13 +57,15 @@ public function attachProyekTag(int proyekId, int tagsId) returns models:ProyekT
 #
 # + proyekId - the parent proyek id
 # + tagsId - the tag id to detach
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND AppError if the tag wasn't attached (or the proyek is missing), or an error
-public function detachProyekTag(int proyekId, int tagsId) returns error? {
+public function detachProyekTag(int proyekId, int tagsId, string subject) returns error? {
     _ = check requireProyek(proyekId);
     boolean detached = check repositories:detachProyekTag(proyekId, tagsId);
     if !detached {
         return utils:notFoundError("Tag dengan id " + tagsId.toString() + " tidak terpasang pada proyek ini");
     }
+    logAudit("proyek_tags", proyekId.toString(), "DELETE", {"tagsId": tagsId}, (), subject);
     return ();
 }
 

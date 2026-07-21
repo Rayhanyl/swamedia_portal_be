@@ -51,6 +51,9 @@ public function updateMyProfile(string subject, models:ProfilSayaUpdateRequest p
     if updated is () {
         return utils:notFoundError("Profil karyawan tidak ditemukan");
     }
+    // Audited against `karyawan` (the table actually written), not a separate "profil_saya" name —
+    // this is the self-service door onto the same row the Karyawan master module edits.
+    logAudit("karyawan", existing.id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 

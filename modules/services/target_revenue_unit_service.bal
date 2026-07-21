@@ -73,7 +73,10 @@ public function createTargetRevenueUnit(models:TargetRevenueUnitCreateRequest pa
         return utils:conflictError("Target revenue untuk unit dan tahun tersebut sudah ada");
     }
 
-    return repositories:insertTargetRevenueUnit(payload.unitId, payload.tahun, tw1, tw2, tw3, tw4, subject);
+    models:TargetRevenueUnit created = check repositories:insertTargetRevenueUnit(payload.unitId, payload.tahun,
+            tw1, tw2, tw3, tw4, subject);
+    logAudit("target_revenue_unit", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates a target row. Same validations as create; the row being updated is excluded from the
@@ -111,18 +114,23 @@ public function updateTargetRevenueUnit(int id, models:TargetRevenueUnitUpdateRe
     if updated is () {
         return utils:notFoundError("Target revenue unit dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("target_revenue_unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
 # Deletes a target row (physical delete — the table has no soft-delete column).
 #
 # + id - the target_revenue_unit id to delete
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteTargetRevenueUnit(int id) returns error? {
+public function deleteTargetRevenueUnit(int id, string subject) returns error? {
+    // Read the row before deleting purely so the audit entry can record what was removed.
+    models:TargetRevenueUnit? existing = check repositories:findTargetRevenueUnitById(id);
     boolean deleted = check repositories:deleteTargetRevenueUnit(id);
     if !deleted {
         return utils:notFoundError("Target revenue unit dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("target_revenue_unit", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject);
     return ();
 }
 

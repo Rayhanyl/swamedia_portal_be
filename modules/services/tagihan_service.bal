@@ -107,6 +107,7 @@ public function createTagihan(models:TagihanCreateRequest payload, string subjec
         }
         return created;
     }
+    logAudit("tagihan", created.id.toString(), "CREATE", (), created.toJson(), subject);
     return created;
 }
 
@@ -146,7 +147,9 @@ public function updateTagihan(int id, models:TagihanUpdateRequest payload, strin
     if !updated {
         return utils:notFoundError("Tagihan dengan id " + id.toString() + " tidak ditemukan");
     }
-    return getTagihanById(id);
+    models:Tagihan result = check getTagihanById(id);
+    logAudit("tagihan", id.toString(), "UPDATE", existing.toJson(), result.toJson(), subject);
+    return result;
 }
 
 # Soft-deletes a tagihan.
@@ -163,6 +166,7 @@ public function deleteTagihan(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Tagihan dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("tagihan", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

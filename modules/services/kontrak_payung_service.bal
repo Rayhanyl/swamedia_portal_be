@@ -88,6 +88,7 @@ public function createKontrakPayung(models:KontrakPayungCreateRequest payload, s
         }
         return created;
     }
+    logAudit("kontrak_payung", created.id.toString(), "CREATE", (), created.toJson(), subject);
     return created;
 }
 
@@ -139,6 +140,7 @@ public function updateKontrakPayung(int id, models:KontrakPayungUpdateRequest pa
     if updated is () {
         return utils:notFoundError("Kontrak payung dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("kontrak_payung", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -162,6 +164,7 @@ public function deleteKontrakPayung(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Kontrak payung dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("kontrak_payung", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

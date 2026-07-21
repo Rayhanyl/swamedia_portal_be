@@ -169,7 +169,9 @@ public function createProyek(models:ProyekCreateRequest payload, string subject)
         return inserted;
     }
 
-    return getProyekById(inserted);
+    models:Proyek created = check getProyekById(inserted);
+    logAudit("proyek", inserted.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates a proyek's mutable fields. `kodeProyek`/`unitId`/`tahun` are never changed — even if the
@@ -246,7 +248,9 @@ public function updateProyek(int id, models:ProyekUpdateRequest payload, string 
         return utils:notFoundError("Proyek dengan id " + id.toString() + " tidak ditemukan");
     }
 
-    return getProyekById(id);
+    models:Proyek result = check getProyekById(id);
+    logAudit("proyek", id.toString(), "UPDATE", existing.toJson(), result.toJson(), subject);
+    return result;
 }
 
 # Soft-deletes a proyek.
@@ -264,6 +268,7 @@ public function deleteProyek(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Proyek dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("proyek", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

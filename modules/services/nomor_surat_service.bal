@@ -131,6 +131,7 @@ public function createNomorSurat(models:NomorSuratCreateRequest payload, string 
     if created is () {
         return error("Nomor surat created (id " + inserted.toString() + ") but could not be read back");
     }
+    logAudit("nomor_surat", inserted.toString(), "CREATE", (), created.toJson(), subject);
     return created;
 }
 
@@ -169,6 +170,7 @@ public function updateNomorSurat(int id, models:NomorSuratUpdateRequest payload,
     if updated is () {
         return utils:notFoundError("Surat dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("nomor_surat", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -213,18 +215,11 @@ public function cancelNomorSurat(int id, models:CancelNomorSuratRequest payload,
         return utils:notFoundError("Surat tidak ditemukan atau sudah dibatalkan sebelumnya");
     }
 
-    // Audit trail for the cancellation. The cancellation itself already committed above, so a
-    // logging failure here must not fail the response to the caller — it is only logged
-    // server-side (same "log but don't fail the request" treatment this codebase already gives
-    // non-critical writes, e.g. the Redis cache-aside write in services:userInfo()).
-    json changedFields = {
-        "alasan_pembatalan": {"old": (), "new": alasan},
-        "is_dibatalkan": {"old": false, "new": true}
-    };
-    error? auditErr = repositories:insertAuditLog("nomor_surat", id.toString(), "DELETE", changedFields, subject);
-    if auditErr is error {
-        log:printError("Failed to write audit_log for nomor_surat cancellation (id=" + id.toString() + ")", auditErr);
-    }
+    // Audit trail for the cancellation, recorded as DELETE since a cancelled letter is retired
+    // rather than edited. Goes through the shared `logAudit` (audit_log_service) so the stored
+    // `perubahan` keeps the same {old, new} shape as every other audited module.
+    logAudit("nomor_surat", id.toString(), "DELETE", existing.toJson(),
+            {"isDibatalkan": true, "alasanPembatalan": alasan}, subject);
 
     return {id: existing.id, nomor: existing.nomor, alasanPembatalan: alasan};
 }

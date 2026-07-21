@@ -36,9 +36,13 @@ public function getSysConfigByKey(string configKey) returns models:SysConfig|err
 # + return - the updated row, a NOT_FOUND AppError if the key does not exist, or an error
 public function updateSysConfigValue(string configKey, models:SysConfigUpdateRequest payload, string subject)
         returns models:SysConfig|error {
+    models:SysConfig? existing = check repositories:findSysConfigByKey(configKey);
     models:SysConfig? updated = check repositories:updateSysConfigValue(configKey, payload.value, subject);
     if updated is () {
         return utils:notFoundError("Konfigurasi dengan key '" + configKey + "' tidak ditemukan");
     }
+    // sys_config is keyed by its string `key`, not a numeric id — that key is what lands in
+    // audit_log.record_id (varchar(60), so it fits).
+    logAudit("sys_config", configKey, "UPDATE", existing is () ? () : existing.toJson(), updated.toJson(), subject);
     return updated;
 }
