@@ -211,6 +211,7 @@ user mengubah apa pun. Tidak ada parameter.
     "organization": "PT Swamedia Informatika",
     "country": "Indonesia",
     "roleId": 2,
+    "roleName": "Manager",
     "groupId": "swamedia_portal_app"
   },
   "errors": null,
@@ -267,6 +268,7 @@ Content-Type: application/json
     "organization": "PT Swamedia Informatika",
     "country": "Indonesia",
     "roleId": 2,
+    "roleName": "Manager",
     "groupId": "swamedia_portal_app"
   },
   "errors": null,
@@ -281,6 +283,7 @@ Content-Type: application/json
 | `subjectId` | Id user WSO2 IS yang diubah (selalu milik pemanggil sendiri). |
 | `email`, `firstName`, `lastName`, `telepon`, `organization`, `country` | Nilai **terkini** di WSO2 IS setelah update — bukan echo dari request. Bisa `null` bila IS tidak mengembalikan field tersebut. |
 | `roleId` | Role portal pemanggil saat ini (read-only, ditampilkan untuk konfirmasi) — **tidak bisa diubah lewat endpoint ini**, `null` bila belum di-assign. |
+| `roleName` | Nama role (`nama_role`), di-resolve backend dari `roleId` lewat tabel `role` lokal — **bukan** data dari WSO2 IS. `null` bila `roleId` kosong atau role-nya sudah dihapus. |
 | `groupId` | Group portal pemanggil (read-only di sini), `null` bila tidak ada. |
 
 **Status:** `200` berhasil · `400` tidak ada field terkirim, format email salah, atau `firstName`/`lastName` kosong · `401` token invalid/kedaluwarsa · `500` kegagalan server (termasuk saat WSO2 IS tidak dapat dihubungi — untuk kasus ini anggap perubahan **kemungkinan besar tidak tersimpan**, jangan tampilkan sebagai sukses).

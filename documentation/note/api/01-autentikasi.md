@@ -125,7 +125,8 @@ Content-Type: application/json
       "sub": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "email": "budi.santoso@swamedia.co.id",
       "name": "Budi Santoso",
-      "swaportal_role_id": "3"
+      "swaportal_role_id": "3",
+      "swaportal_role_name": "Manager"
     }
   },
   "errors": null,
@@ -143,6 +144,7 @@ Content-Type: application/json
 | `tokenType` | Selalu `"Bearer"`. |
 | `expiresIn` | Umur access token dalam **detik** sejak diterbitkan (bukan timestamp kedaluwarsa). |
 | `user` | Klaim id_token hasil decode. `user.sub` adalah identitas user yang dipakai backend untuk field audit. `user.swaportal_role_id` menunjuk role portal yang menentukan menu & permission. |
+| `user.swaportal_role_name` | **Bukan klaim asli dari IS** — ditambahkan backend dengan resolve `swaportal_role_id` ke tabel `role` lokal, supaya frontend tidak perlu request tambahan hanya untuk nama role. Hilang (tidak ada key-nya) kalau `swaportal_role_id` kosong/tidak valid/role sudah dihapus — jangan asumsikan selalu ada. |
 
 **Status**
 

@@ -15,7 +15,7 @@ mengirim `Authorization: Bearer <accessToken>`.
 | [Industri](#modul-industri) | `/api/v1/master/industries` | `INDUSTRI` | soft |
 | [Tags](#modul-tags) | `/api/v1/master/tags` | — (tanpa RBAC) | soft |
 | [Resource Tags](#modul-resource-tags) | `/api/v1/master/resource-tags` | `RESOURCE_TAG` | soft |
-| [Kategori Surat](#modul-kategori-surat) | `/api/v1/master/kategori-surat` | `KATEGORI_SURAT` | soft |
+| [Kategori Surat](#modul-kategori-surat) | `/api/v1/master/kategori-surat` | `KATEGORI_SURAT` | **fisik** |
 | [Kategori Finansial Keluar](#modul-kategori-finansial-keluar) | `/api/v1/master/kategori-finansial-keluar` | — (tanpa RBAC) | **fisik** |
 | [Jabatan](#modul-jabatan) | `/api/v1/master/jabatan` | — (tanpa RBAC) | — (read-only) |
 | [Karyawan](#modul-karyawan) | `/api/v1/master/karyawan` | `KARYAWAN` | soft |
@@ -28,8 +28,10 @@ Bertanda "—" berarti cukup token valid, tanpa cek permission.
 
 ## Pola CRUD Bersama
 
-Sepuluh dari sebelas modul mengikuti pola yang persis sama. Dibaca sekali di sini, lalu tiap modul
-di bawah hanya mencantumkan yang khas darinya.
+Sembilan dari sebelas modul mengikuti pola yang persis sama (termasuk DELETE = soft delete).
+Kategori Surat dan Kategori Finansial Keluar menyimpang di DELETE (hard delete) — lihat catatan
+"Perhatian" di masing-masing bagiannya. Dibaca sekali di sini, lalu tiap modul di bawah hanya
+mencantumkan yang khas darinya.
 
 | Method | URL | Fungsi | Sukses |
 | --- | --- | --- | --- |
@@ -421,6 +423,13 @@ Master kategori surat (DR-01..DR-09) untuk penomoran di [Daftar Surat](07-e-offi
 
 **Base URL:** `/api/v1/master/kategori-surat` · **Modul RBAC:** `KATEGORI_SURAT`
 
+**Perhatian: DELETE di sini bersifat FISIK, bukan soft delete** — tabelnya tidak punya kolom
+`is_deleted`. Alasannya: `nama` punya unique constraint di level DB, jadi baris soft-deleted akan
+terus mengunci nama/kode itu walau terlihat "tersedia" bagi aplikasi. Ditolak `409` jika kategori
+bawaan (`isDefault: true`) atau **pernah** dipakai `nomor_surat` (termasuk surat yang sudah
+dibatalkan/dihapus) — bukan cuma yang aktif. Karena tak bisa dibatalkan, konfirmasikan ke user
+sebelum memanggilnya.
+
 ### Daftar Endpoint
 
 | Method | URL | Fungsi |
@@ -429,7 +438,7 @@ Master kategori surat (DR-01..DR-09) untuk penomoran di [Daftar Surat](07-e-offi
 | GET | `/api/v1/master/kategori-surat/{id}` | Detail |
 | POST | `/api/v1/master/kategori-surat` | Membuat |
 | PUT | `/api/v1/master/kategori-surat/{id}` | Mengubah |
-| DELETE | `/api/v1/master/kategori-surat/{id}` | Soft delete |
+| DELETE | `/api/v1/master/kategori-surat/{id}` | Hapus (fisik) |
 
 ### `GET /api/v1/master/kategori-surat`
 
@@ -459,7 +468,7 @@ Master kategori surat (DR-01..DR-09) untuk penomoran di [Daftar Surat](07-e-offi
 | --- | --- |
 | `kode` | Format `DR-XX`. Ikut menyusun nomor surat yang di-generate. |
 | `isDefault` | **Read-only.** `true` menandai 9 kategori bawaan hasil seeding — **nonaktifkan tombol Hapus** untuk baris ini di UI. Dikirim di body pun diabaikan; kategori baru selalu `false`. |
-| `status` | `TIDAK_AKTIF` berarti tidak bisa dipilih untuk surat **baru**, tetapi surat lama yang sudah memakainya tetap sah. Berbeda dari soft delete. |
+| `status` | `TIDAK_AKTIF` berarti tidak bisa dipilih untuk surat **baru**, tetapi surat lama yang sudah memakainya tetap sah. Berbeda dari DELETE (yang bersifat fisik dan ditolak selama masih dirujuk). |
 
 ### `POST` / `PUT`
 
@@ -471,7 +480,7 @@ Master kategori surat (DR-01..DR-09) untuk penomoran di [Daftar Surat](07-e-offi
 
 `isDefault` tidak ada di bentuk request — dikirim pun diabaikan diam-diam.
 
-**Status khas:** `409` `kode` duplikat, atau kategori masih dipakai surat saat dihapus.
+**Status khas:** `409` `kode`/`nama` duplikat (POST/PUT), kategori bawaan atau pernah dipakai surat (DELETE).
 
 ---
 

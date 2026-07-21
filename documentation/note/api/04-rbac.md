@@ -1077,6 +1077,7 @@ Super Admin, supaya field-nya terisi nilai terkini alih-alih kosong.
     "organization": "PT Swamedia Informatika",
     "country": "Indonesia",
     "roleId": 2,
+    "roleName": "Administrator Unit",
     "groupId": "swamedia_portal_app"
   },
   "errors": null,
@@ -1147,6 +1148,7 @@ Content-Type: application/json
     "organization": "PT Swamedia Informatika",
     "country": "Indonesia",
     "roleId": 3,
+    "roleName": "Manager",
     "groupId": "swamedia_portal_app"
   },
   "errors": null,
