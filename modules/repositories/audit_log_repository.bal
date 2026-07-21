@@ -18,17 +18,18 @@ import rayha/swamedia_portal_be.models;
 # there is no request-context plumbing anywhere in this project yet to source it from.
 #
 # + tableName - the audited table's name (e.g. "nomor_surat")
-# + recordId - the audited row's id
+# + recordId - the audited row's id — a local table's int PK (as string) or a WSO2 subjectId
+#   (record_id is `varchar(60)` in the DB precisely to fit either)
 # + aksi - "CREATE" / "UPDATE" / "DELETE"
 # + perubahan - `{"column": {"old": ..., "new": ...}, ...}`, JSON-encoded into the text column
 # + aktor - the `sub` claim of the caller (never from the request body)
 # + return - an error if the insert failed
-public function insertAuditLog(string tableName, int recordId, string aksi, json perubahan,
+public function insertAuditLog(string tableName, string recordId, string aksi, json perubahan,
         string aktor) returns error? {
     postgresql:Client dbc = check dbClient();
     _ = check dbc->execute(`
         INSERT INTO audit_log (table_name, record_id, aksi, aktor, perubahan)
-        VALUES (${tableName}, ${recordId.toString()}, ${aksi}, ${aktor}, ${perubahan.toJsonString()})`);
+        VALUES (${tableName}, ${recordId}, ${aksi}, ${aktor}, ${perubahan.toJsonString()})`);
 }
 
 # Flat projection of an audit_log row — the shape the SQL client can bind directly (`perubahan` as

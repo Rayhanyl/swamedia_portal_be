@@ -90,6 +90,7 @@ public function createCustomer(models:CustomerCreateRequest payload, string subj
     if created is () {
         return error("Customer created (id " + newId.toString() + ") but could not be read back");
     }
+    logAudit("customer", newId.toString(), "CREATE", (), created.toJson(), subject);
     return created;
 }
 
@@ -133,6 +134,7 @@ public function updateCustomer(int id, models:CustomerUpdateRequest payload, str
     if updated is () {
         return utils:notFoundError("Customer dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("customer", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -156,6 +158,7 @@ public function deleteCustomer(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Customer dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("customer", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

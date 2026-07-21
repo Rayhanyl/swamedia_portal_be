@@ -80,7 +80,9 @@ public function createResourceUnit(models:ResourceUnitCreateRequest payload, str
         return utils:conflictError("Unit ini sudah memiliki data resource unit");
     }
 
-    return repositories:insertResourceUnit(payload.unitId, leadId, jumlah, kapasitas, status, subject);
+    models:ResourceUnit created = check repositories:insertResourceUnit(payload.unitId, leadId, jumlah, kapasitas, status, subject);
+    logAudit("resource_unit", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates a resource row. Same validations as create; the row being updated is excluded from the
@@ -120,6 +122,7 @@ public function updateResourceUnit(int id, models:ResourceUnitUpdateRequest payl
     if updated is () {
         return utils:notFoundError("Resource unit dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("resource_unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -137,6 +140,7 @@ public function deleteResourceUnit(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Resource unit dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("resource_unit", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

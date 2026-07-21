@@ -57,8 +57,9 @@ public function getUserCacheBySubjectId(string subjectId) returns models:UserCac
 # Provisions a new WSO2 IS user via SCIM2, then write-through mirrors it into user_cache.
 #
 # + payload - the create request body
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the newly-cached user, a VALIDATION_ERROR AppError, or an error
-public function createUser(models:UserCreateRequest payload) returns models:UserCacheItem|error {
+public function createUser(models:UserCreateRequest payload, string subject) returns models:UserCacheItem|error {
     string userName = payload.userName.trim();
     string nama = payload.nama.trim();
     string email = payload.email.trim().toLowerAscii();
@@ -82,15 +83,19 @@ public function createUser(models:UserCreateRequest payload) returns models:User
     if cacheErr is error {
         log:printError("user_cache write-through failed after SCIM2 create", cacheErr);
     }
-    return getUserCacheBySubjectId(subjectId);
+    models:UserCacheItem created = check getUserCacheBySubjectId(subjectId);
+    logAudit("user", subjectId, "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates a user's display name + email via SCIM2, then write-through mirrors it into user_cache.
 #
 # + subjectId - the WSO2 IS subject id
 # + payload - the update request body
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the updated cached user, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function updateUser(string subjectId, models:UserUpdateRequest payload) returns models:UserCacheItem|error {
+public function updateUser(string subjectId, models:UserUpdateRequest payload, string subject)
+        returns models:UserCacheItem|error {
     string nama = payload.nama.trim();
     string email = payload.email.trim().toLowerAscii();
     if nama.length() < 1 {
@@ -111,7 +116,9 @@ public function updateUser(string subjectId, models:UserUpdateRequest payload) r
     if cacheErr is error {
         log:printError("user_cache write-through failed after SCIM2 update", cacheErr);
     }
-    return getUserCacheBySubjectId(subjectId);
+    models:UserCacheItem updated = check getUserCacheBySubjectId(subjectId);
+    logAudit("user", subjectId, "UPDATE", existing.toJson(), updated.toJson(), subject);
+    return updated;
 }
 
 # Sets (or clears) a user's portal role (`swaportal_role_id`) via SCIM2. No user_cache column mirrors
@@ -119,8 +126,9 @@ public function updateUser(string subjectId, models:UserUpdateRequest payload) r
 #
 # + subjectId - the WSO2 IS subject id
 # + payload - the role update request body
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the cached user, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function setUserRole(string subjectId, models:UserRoleUpdateRequest payload)
+public function setUserRole(string subjectId, models:UserRoleUpdateRequest payload, string subject)
         returns models:UserCacheItem|error {
     models:UserCacheItem? existing = check repositories:findUserCacheBySubjectId(subjectId);
     if existing is () {
@@ -129,7 +137,11 @@ public function setUserRole(string subjectId, models:UserRoleUpdateRequest paylo
     int? roleId = check ensureRoleExists(payload.roleId);
 
     check repositories:scimSetRole(subjectId, roleId);
-    return getUserCacheBySubjectId(subjectId);
+    models:UserCacheItem result = check getUserCacheBySubjectId(subjectId);
+    // No user_cache column mirrors the role (see doc above), so there's no cheap "before" value —
+    // only the new role id is recorded.
+    logAudit("user", subjectId, "UPDATE", (), {"roleId": roleId}, subject);
+    return result;
 }
 
 # Enables/disables a user (SCIM `active`) via SCIM2, then write-through mirrors the status into
@@ -137,8 +149,9 @@ public function setUserRole(string subjectId, models:UserRoleUpdateRequest paylo
 #
 # + subjectId - the WSO2 IS subject id
 # + payload - the status update request body
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the updated cached user, a NOT_FOUND AppError, or an error
-public function setUserStatus(string subjectId, models:UserStatusUpdateRequest payload)
+public function setUserStatus(string subjectId, models:UserStatusUpdateRequest payload, string subject)
         returns models:UserCacheItem|error {
     models:UserCacheItem? existing = check repositories:findUserCacheBySubjectId(subjectId);
     if existing is () {
@@ -152,7 +165,9 @@ public function setUserStatus(string subjectId, models:UserStatusUpdateRequest p
     if cacheErr is error {
         log:printError("user_cache write-through failed after SCIM2 status change", cacheErr);
     }
-    return getUserCacheBySubjectId(subjectId);
+    models:UserCacheItem result = check getUserCacheBySubjectId(subjectId);
+    logAudit("user", subjectId, "UPDATE", {"status": existing.status}, {"status": status}, subject);
+    return result;
 }
 
 # Super Admin update of ANOTHER user's full WSO2 IS identity (password reset, email, first/last
@@ -163,8 +178,9 @@ public function setUserStatus(string subjectId, models:UserStatusUpdateRequest p
 #
 # + subjectId - the WSO2 IS subject id to update (the TARGET user, not the caller)
 # + payload - the update request body
+# + subject - the caller's (admin's) own `sub` claim, stored as the audit_log `aktor`
 # + return - the updated identity snapshot, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function updateUserAccount(string subjectId, models:UserAccountUpdateRequest payload)
+public function updateUserAccount(string subjectId, models:UserAccountUpdateRequest payload, string subject)
         returns models:AkunProfile|error {
     models:UserCacheItem? existing = check repositories:findUserCacheBySubjectId(subjectId);
     if existing is () {
@@ -180,7 +196,7 @@ public function updateUserAccount(string subjectId, models:UserAccountUpdateRequ
         roleId: payload?.roleId,
         groupId: payload?.groupId
     };
-    return applyAccountUpdate(subjectId, input);
+    return applyAccountUpdate(subjectId, input, subject);
 }
 
 # Super Admin reset of ANOTHER user's WSO2 IS password — the admin counterpart of
@@ -190,13 +206,15 @@ public function updateUserAccount(string subjectId, models:UserAccountUpdateRequ
 #
 # + subjectId - the WSO2 IS subject id whose password to reset (the TARGET user, not the caller)
 # + payload - the new-password request body
+# + subject - the caller's (admin's) own `sub` claim, stored as the audit_log `aktor`
 # + return - a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function updateUserPassword(string subjectId, models:PasswordUpdateRequest payload) returns error? {
+public function updateUserPassword(string subjectId, models:PasswordUpdateRequest payload, string subject)
+        returns error? {
     models:UserCacheItem? existing = check repositories:findUserCacheBySubjectId(subjectId);
     if existing is () {
         return utils:notFoundError("User dengan subject_id '" + subjectId + "' tidak ditemukan");
     }
-    return applyPasswordUpdate(subjectId, payload.password);
+    return applyPasswordUpdate(subjectId, payload.password, subject);
 }
 
 # Fetches a user's full WSO2 IS identity snapshot — the admin counterpart of

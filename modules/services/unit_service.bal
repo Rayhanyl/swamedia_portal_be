@@ -129,7 +129,9 @@ public function createUnit(models:UnitCreateRequest payload, string subject) ret
         return utils:conflictError("Kode unit sudah digunakan");
     }
 
-    return repositories:insertUnit(namaUnit, kodeUnit, parentUnitId, status, subject);
+    models:Unit created = check repositories:insertUnit(namaUnit, kodeUnit, parentUnitId, status, subject);
+    logAudit("unit", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates an existing unit. Validates name/status, the parent reference, and guards against
@@ -182,6 +184,7 @@ public function updateUnit(int id, models:UnitUpdateRequest payload, string subj
     if updated is () {
         return utils:notFoundError("Unit dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -205,6 +208,7 @@ public function deleteUnit(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Unit dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("unit", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

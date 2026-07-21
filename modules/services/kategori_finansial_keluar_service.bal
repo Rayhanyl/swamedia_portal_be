@@ -72,7 +72,9 @@ public function createKategoriFinansialKeluar(models:KategoriFinansialKeluarCrea
         return utils:conflictError("Kode kategori finansial keluar sudah digunakan");
     }
 
-    return repositories:insertKategoriFinansialKeluar(kode, nama, status, subject);
+    models:KategoriFinansialKeluar created = check repositories:insertKategoriFinansialKeluar(kode, nama, status, subject);
+    logAudit("kategori_finansial_keluar", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates a kategori: same validations as create; the row being updated is excluded from the kode
@@ -80,9 +82,10 @@ public function createKategoriFinansialKeluar(models:KategoriFinansialKeluarCrea
 #
 # + id - the kategori_finansial_keluar id to update
 # + payload - the update request body
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the updated kategori, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateKategoriFinansialKeluar(int id, models:KategoriFinansialKeluarUpdateRequest payload)
-        returns models:KategoriFinansialKeluar|error {
+public function updateKategoriFinansialKeluar(int id, models:KategoriFinansialKeluarUpdateRequest payload,
+        string subject) returns models:KategoriFinansialKeluar|error {
     string kode = payload.kode.trim();
     string nama = payload.nama.trim();
     check validateKategoriFinansialFields(kode, nama);
@@ -104,6 +107,7 @@ public function updateKategoriFinansialKeluar(int id, models:KategoriFinansialKe
     if updated is () {
         return utils:notFoundError("Kategori finansial keluar dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("kategori_finansial_keluar", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -111,8 +115,9 @@ public function updateKategoriFinansialKeluar(int id, models:KategoriFinansialKe
 # pembayaran/pengeluaran.
 #
 # + id - the kategori_finansial_keluar id to delete
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteKategoriFinansialKeluar(int id) returns error? {
+public function deleteKategoriFinansialKeluar(int id, string subject) returns error? {
     models:KategoriFinansialKeluar? existing = check repositories:findKategoriFinansialKeluarById(id);
     if existing is () {
         return utils:notFoundError("Kategori finansial keluar dengan id " + id.toString() + " tidak ditemukan");
@@ -125,6 +130,7 @@ public function deleteKategoriFinansialKeluar(int id) returns error? {
     if !deleted {
         return utils:notFoundError("Kategori finansial keluar dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("kategori_finansial_keluar", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

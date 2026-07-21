@@ -81,7 +81,9 @@ public function createResourceTags(models:ResourceTagsCreateRequest payload, str
         return utils:conflictError("Kombinasi kode dan unit sudah digunakan");
     }
 
-    return repositories:insertResourceTags(kode, nama, unitId, deskripsi, status, subject);
+    models:ResourceTags created = check repositories:insertResourceTags(kode, nama, unitId, deskripsi, status, subject);
+    logAudit("resource_tags", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates an existing resource tag. Re-checks (kode, unit_id) uniqueness excluding the row itself.
@@ -120,6 +122,7 @@ public function updateResourceTags(int id, models:ResourceTagsUpdateRequest payl
     if updated is () {
         return utils:notFoundError("Resource Tag dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("resource_tags", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -143,6 +146,7 @@ public function deleteResourceTags(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Resource Tag dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("resource_tags", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

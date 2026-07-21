@@ -1,15 +1,42 @@
+import ballerina/log;
 import rayha/swamedia_portal_be.models;
 import rayha/swamedia_portal_be.repositories;
 import rayha/swamedia_portal_be.utils;
 
-# ===== Audit Log (read-only) service =====
+# ===== Audit Log =====
 #
-# Read-only reporting over the append-only `audit_log` table. Rows are written internally by other
-# services (e.g. `nomor_surat_service` on cancel) via `repositories:insertAuditLog` — this module
-# never writes, only queries. Date-range filters reuse `validateProyekDate` from `proyek_service`
-# (same `services` module) for the YYYY-MM-DD format/parse check.
+# `getAuditLog`/`getAuditLogById` below are read-only reporting over the append-only `audit_log`
+# table. `logAudit` is the write side every other create/update/delete service in this module calls
+# after its own change has already committed — see its doc for the shape. Date-range filters reuse
+# `validateProyekDate` from `proyek_service` (same `services` module) for the YYYY-MM-DD format/parse
+# check.
 
 final string[] AUDIT_LOG_VALID_AKSI = ["CREATE", "UPDATE", "DELETE"];
+
+# Best-effort `audit_log` write, called by every other service after its own create/update/delete
+# has already committed. Swallows failures (logs them) — a logging hiccup must never fail a request
+# whose actual change already succeeded, same treatment this codebase gives other non-critical
+# writes (e.g. the Redis cache-aside write in `services:userInfo()`).
+#
+# `oldData`/`newData` are whole-record JSON snapshots, not per-field diffs — typically `.toJson()` of
+# the "before" record a validation step already fetched, and of the "after" record the repository
+# call already returned, so callers rarely need to fetch anything extra just for this.
+#
+# + tableName - the audited table's name (e.g. "unit") — or a logical entity name for changes that
+#   land in WSO2 IS rather than a local table (e.g. "user" for Manajemen User/Akun Saya)
+# + recordId - the audited row's id — a local table's int PK (as string) or a WSO2 subjectId
+# + aksi - "CREATE" / "UPDATE" / "DELETE"
+# + oldData - the record's state before the change, or () for CREATE
+# + newData - the record's state after the change, or () for DELETE
+# + aktor - the caller's `sub` claim (never from the request body)
+function logAudit(string tableName, string recordId, string aksi, json? oldData, json? newData, string aktor) {
+    json perubahan = {"old": oldData, "new": newData};
+    error? auditErr = repositories:insertAuditLog(tableName, recordId, aksi, perubahan, aktor);
+    if auditErr is error {
+        log:printError("Failed to write audit_log for " + tableName + " " + aksi + " (id=" + recordId + ")",
+                auditErr);
+    }
+}
 
 # Lists audit_log entries with optional filters and pagination, newest first.
 #

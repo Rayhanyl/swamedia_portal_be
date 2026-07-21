@@ -188,8 +188,9 @@ function buildMenuTree(models:Menu[] menus) returns models:MenuTreeNode[] {
 # Creates a new menu after validating kode/nama/status and the parent reference.
 #
 # + payload - the create request body
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the created menu, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createMenu(models:MenuCreateRequest payload) returns models:Menu|error {
+public function createMenu(models:MenuCreateRequest payload, string subject) returns models:Menu|error {
     string kodeMenu = payload.kodeMenu.trim();
     check validateKodeMenu(kodeMenu);
     string namaMenu = payload.namaMenu.trim();
@@ -216,7 +217,9 @@ public function createMenu(models:MenuCreateRequest payload) returns models:Menu
         return utils:conflictError("Kode menu sudah digunakan");
     }
 
-    return repositories:insertMenu(parentId, kodeMenu, namaMenu, path, icon, urutan, status);
+    models:Menu created = check repositories:insertMenu(parentId, kodeMenu, namaMenu, path, icon, urutan, status);
+    logAudit("menu", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates an existing menu. Validates the parent reference and guards against circular
@@ -224,8 +227,9 @@ public function createMenu(models:MenuCreateRequest payload) returns models:Menu
 #
 # + id - the menu id to update
 # + payload - the update request body
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the updated menu, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateMenu(int id, models:MenuUpdateRequest payload) returns models:Menu|error {
+public function updateMenu(int id, models:MenuUpdateRequest payload, string subject) returns models:Menu|error {
     string kodeMenu = payload.kodeMenu.trim();
     check validateKodeMenu(kodeMenu);
     string namaMenu = payload.namaMenu.trim();
@@ -267,6 +271,7 @@ public function updateMenu(int id, models:MenuUpdateRequest payload) returns mod
     if updated is () {
         return utils:notFoundError("Menu dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("menu", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -274,8 +279,9 @@ public function updateMenu(int id, models:MenuUpdateRequest payload) returns mod
 # `role:{id}:menu` cache of every role that had this menu assigned (its tree just changed).
 #
 # + id - the menu id to delete
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteMenu(int id) returns error? {
+public function deleteMenu(int id, string subject) returns error? {
     models:Menu? existing = check repositories:findMenuById(id);
     if existing is () {
         return utils:notFoundError("Menu dengan id " + id.toString() + " tidak ditemukan");
@@ -292,6 +298,7 @@ public function deleteMenu(int id) returns error? {
     if !deleted {
         return utils:notFoundError("Menu dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("menu", id.toString(), "DELETE", existing.toJson(), (), subject);
 
     foreach int roleId in affectedRoleIds {
         error? cacheErr = repositories:cacheDelete("role:" + roleId.toString() + ":menu");

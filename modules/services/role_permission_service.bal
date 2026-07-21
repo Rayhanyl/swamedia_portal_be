@@ -64,6 +64,7 @@ public function replaceRolePermissions(int roleId, models:RolePermissionUpdateRe
         }
     }
 
+    models:RolePermissionItem[] oldItems = check repositories:findRolePermissionMatrix(roleId);
     check repositories:replaceRolePermissions(roleId, payload.items, subject);
 
     error? cacheErr = repositories:cacheDelete("role:" + roleId.toString() + ":permissions");
@@ -72,5 +73,6 @@ public function replaceRolePermissions(int roleId, models:RolePermissionUpdateRe
     }
 
     models:RolePermissionItem[] items = check repositories:findRolePermissionMatrix(roleId);
+    logAudit("role_permission", roleId.toString(), "UPDATE", oldItems.toJson(), items.toJson(), subject);
     return {roleId: role.id, kodeRole: role.kodeRole, namaRole: role.namaRole, items: items};
 }

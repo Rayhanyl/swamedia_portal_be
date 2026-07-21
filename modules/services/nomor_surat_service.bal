@@ -221,7 +221,7 @@ public function cancelNomorSurat(int id, models:CancelNomorSuratRequest payload,
         "alasan_pembatalan": {"old": (), "new": alasan},
         "is_dibatalkan": {"old": false, "new": true}
     };
-    error? auditErr = repositories:insertAuditLog("nomor_surat", id, "DELETE", changedFields, subject);
+    error? auditErr = repositories:insertAuditLog("nomor_surat", id.toString(), "DELETE", changedFields, subject);
     if auditErr is error {
         log:printError("Failed to write audit_log for nomor_surat cancellation (id=" + id.toString() + ")", auditErr);
     }

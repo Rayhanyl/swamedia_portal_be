@@ -65,7 +65,9 @@ public function createTags(models:TagsCreateRequest payload, string subject) ret
         return utils:conflictError("Kombinasi kode dan unit sudah digunakan");
     }
 
-    return repositories:insertTags(kode, nama, unitId, subject);
+    models:Tags created = check repositories:insertTags(kode, nama, unitId, subject);
+    logAudit("tags", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates an existing tag. Re-checks the (kode, unit_id) uniqueness excluding the row itself.
@@ -98,6 +100,7 @@ public function updateTags(int id, models:TagsUpdateRequest payload, string subj
     if updated is () {
         return utils:notFoundError("Tag dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("tags", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -121,6 +124,7 @@ public function deleteTags(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Tag dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("tags", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

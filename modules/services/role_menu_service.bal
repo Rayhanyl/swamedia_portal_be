@@ -68,8 +68,9 @@ function buildRoleMenuTree(models:Menu[] menus, map<boolean> assignedSet) return
 #
 # + roleId - the role id
 # + payload - the full set of menu ids to assign
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the saved menu tree with assigned flags, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function replaceRoleMenus(int roleId, models:RoleMenuUpdateRequest payload)
+public function replaceRoleMenus(int roleId, models:RoleMenuUpdateRequest payload, string subject)
         returns models:RoleMenuMatrix|error {
     models:Role? role = check repositories:findRoleById(roleId);
     if role is () {
@@ -89,6 +90,7 @@ public function replaceRoleMenus(int roleId, models:RoleMenuUpdateRequest payloa
         }
     }
 
+    int[] oldMenuIds = check repositories:findAssignedMenuIds(roleId);
     check repositories:replaceRoleMenus(roleId, payload.menuIds);
 
     error? cacheErr = repositories:cacheDelete("role:" + roleId.toString() + ":menu");
@@ -96,5 +98,6 @@ public function replaceRoleMenus(int roleId, models:RoleMenuUpdateRequest payloa
         log:printError("Failed to invalidate role menu cache", cacheErr);
     }
 
+    logAudit("role_menu", roleId.toString(), "UPDATE", oldMenuIds.toJson(), payload.menuIds.toJson(), subject);
     return getRoleMenus(roleId);
 }

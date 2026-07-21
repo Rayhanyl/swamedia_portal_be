@@ -66,7 +66,9 @@ public function createIndustri(models:IndustriCreateRequest payload, string subj
         return utils:conflictError("Kode industri sudah digunakan");
     }
 
-    return repositories:insertIndustri(kode, nama, subject);
+    models:Industri created = check repositories:insertIndustri(kode, nama, subject);
+    logAudit("industri", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates an existing industri. Validates kode/nama and re-checks kode uniqueness (excluding
@@ -98,6 +100,7 @@ public function updateIndustri(int id, models:IndustriUpdateRequest payload, str
     if updated is () {
         return utils:notFoundError("Industri dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("industri", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -121,6 +124,7 @@ public function deleteIndustri(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Industri dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("industri", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

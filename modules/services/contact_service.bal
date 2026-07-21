@@ -85,7 +85,9 @@ public function createContact(models:ContactCreateRequest payload, string subjec
         check ensureEmailAvailable(payload.customerId, email, 0);
     }
 
-    return repositories:insertContact(payload.customerId, nama, jabatan, email, telepon, tipeKontak, subject);
+    models:Contact created = check repositories:insertContact(payload.customerId, nama, jabatan, email, telepon, tipeKontak, subject);
+    logAudit("contact", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates an existing contact. Re-checks the (customer_id, email) uniqueness excluding itself.
@@ -128,6 +130,7 @@ public function updateContact(int id, models:ContactUpdateRequest payload, strin
     if updated is () {
         return utils:notFoundError("Contact dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("contact", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -147,6 +150,7 @@ public function deleteContact(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Contact dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("contact", id.toString(), "DELETE", existing.toJson(), (), subject);
     return ();
 }
 

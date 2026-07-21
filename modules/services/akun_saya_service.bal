@@ -47,7 +47,7 @@ public function updateMyAccount(string subject, models:AkunSayaUpdateRequest pay
         organization: payload?.organization,
         country: payload?.country
     };
-    return applyAccountUpdate(subject, input);
+    return applyAccountUpdate(subject, input, subject);
 }
 
 # Changes the caller's OWN WSO2 IS password. `subject` is always the caller's own `sub` claim
@@ -57,22 +57,26 @@ public function updateMyAccount(string subject, models:AkunSayaUpdateRequest pay
 # + payload - the new-password request body
 # + return - a VALIDATION_ERROR AppError, or an error
 public function updateMyPassword(string subject, models:PasswordUpdateRequest payload) returns error? {
-    return applyPasswordUpdate(subject, payload.password);
+    return applyPasswordUpdate(subject, payload.password, subject);
 }
 
 # Shared password-change implementation for both the self-service (Akun Saya) and admin (Manajemen
 # User) entry points: validates, then issues a lone SCIM2 `replace` of `password` as the Super Admin
 # IS account (URL-Doc-IS7 §4). No user_cache write-through — the password is never mirrored locally.
 #
-# + subjectId - the WSO2 IS subject id whose password to set
+# + subjectId - the WSO2 IS subject id whose password to set (the TARGET — same as `aktor` for
+#   self-service, different for the Manajemen User admin path)
 # + password - the new password
+# + aktor - the caller's own `sub` claim, stored as the audit_log `aktor`
 # + return - a VALIDATION_ERROR AppError, or an error
-function applyPasswordUpdate(string subjectId, string password) returns error? {
+function applyPasswordUpdate(string subjectId, string password, string aktor) returns error? {
     if password.length() < 6 {
         return utils:validationError("Password minimal 6 karakter");
     }
     json[] operations = [replaceOp("password", password)];
     _ = check repositories:scimAdminPatch(subjectId, operations);
+    // Never log the password itself — only that a reset happened.
+    logAudit("user", subjectId, "UPDATE", (), {"action": "password_reset"}, aktor);
 }
 
 # The SCIM2 enterprise-User extension schema URN (organization lives here).
@@ -114,10 +118,12 @@ type AccountUpdateInput record {|
 # via the Super-Admin-credentialed `repositories:scimAdminPatch`, then best-effort write-throughs
 # email/nama into `user_cache` so the read side (Manajemen User list) reflects it immediately.
 #
-# + subjectId - the WSO2 IS subject id to update
+# + subjectId - the WSO2 IS subject id to update (the TARGET — same as `aktor` for self-service,
+#   different for the Manajemen User admin path)
 # + input - the normalized set of fields to apply (only non-() fields are sent)
+# + aktor - the caller's own `sub` claim, stored as the audit_log `aktor`
 # + return - the updated identity snapshot, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-function applyAccountUpdate(string subjectId, AccountUpdateInput input) returns models:AkunProfile|error {
+function applyAccountUpdate(string subjectId, AccountUpdateInput input, string aktor) returns models:AkunProfile|error {
     json[] operations = [];
     string[] extraSchemas = [];
     boolean usedWso2 = false;
@@ -227,6 +233,9 @@ function applyAccountUpdate(string subjectId, AccountUpdateInput input) returns 
         }
     }
 
+    // No cheap "before" snapshot here — fetching it would mean an extra WSO2 IS round trip on
+    // every account update, so `old` is left () and this entry only records the resulting state.
+    logAudit("user", subjectId, "UPDATE", (), profile.toJson(), aktor);
     return profile;
 }
 

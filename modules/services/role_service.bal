@@ -76,7 +76,9 @@ public function createRole(models:RoleCreateRequest payload, string subject) ret
         return utils:conflictError("Kode role sudah digunakan");
     }
 
-    return repositories:insertRole(kodeRole, namaRole, deskripsi, status, subject);
+    models:Role created = check repositories:insertRole(kodeRole, namaRole, deskripsi, status, subject);
+    logAudit("role", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    return created;
 }
 
 # Updates an existing role. Re-checks kode_role uniqueness excluding the row itself.
@@ -110,6 +112,7 @@ public function updateRole(int id, models:RoleUpdateRequest payload, string subj
     if updated is () {
         return utils:notFoundError("Role dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("role", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
     return updated;
 }
 
@@ -117,8 +120,9 @@ public function updateRole(int id, models:RoleUpdateRequest payload, string subj
 # and invalidates the role's cached permission/menu keys.
 #
 # + id - the role id to delete
+# + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteRole(int id) returns error? {
+public function deleteRole(int id, string subject) returns error? {
     models:Role? existing = check repositories:findRoleById(id);
     if existing is () {
         return utils:notFoundError("Role dengan id " + id.toString() + " tidak ditemukan");
@@ -128,6 +132,7 @@ public function deleteRole(int id) returns error? {
     if !deleted {
         return utils:notFoundError("Role dengan id " + id.toString() + " tidak ditemukan");
     }
+    logAudit("role", id.toString(), "DELETE", existing.toJson(), (), subject);
 
     error? cacheErr = repositories:cacheDelete(
             "role:" + id.toString() + ":permissions", "role:" + id.toString() + ":menu");

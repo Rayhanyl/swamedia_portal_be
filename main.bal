@@ -761,9 +761,11 @@ service /api/v1/master/kategori\-surat on apiListener {
 
     # DELETE /api/v1/master/kategori-surat/{id} — hard delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id]() returns http:Response {
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+            returns http:Response {
         do {
-            check services:deleteKategoriSurat(id);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:deleteKategoriSurat(id, subject);
             return successHttp(http:STATUS_OK, (), "Kategori surat berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete kategori surat");
@@ -850,9 +852,11 @@ service /api/v1/master/roles on apiListener {
 
     # DELETE /api/v1/master/roles/{id} — hard delete (cascades role_permission/role_menu cleanup).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id]() returns http:Response {
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+            returns http:Response {
         do {
-            check services:deleteRole(id);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:deleteRole(id, subject);
             return successHttp(http:STATUS_OK, (), "Role berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete role");
@@ -926,9 +930,11 @@ service /api/v1/master/menu on apiListener {
 
     # POST /api/v1/master/menu — create a menu node.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function post .(@http:Payload models:MenuCreateRequest payload) returns http:Response {
+    resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Payload models:MenuCreateRequest payload) returns http:Response {
         do {
-            models:Menu created = check services:createMenu(payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:Menu created = check services:createMenu(payload, subject);
             return successHttp(http:STATUS_CREATED, created, "Menu berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create menu");
@@ -937,9 +943,11 @@ service /api/v1/master/menu on apiListener {
 
     # PUT /api/v1/master/menu/{id} — update a menu node.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function put [int id](@http:Payload models:MenuUpdateRequest payload) returns http:Response {
+    resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Payload models:MenuUpdateRequest payload) returns http:Response {
         do {
-            models:Menu updated = check services:updateMenu(id, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:Menu updated = check services:updateMenu(id, payload, subject);
             return successHttp(http:STATUS_OK, updated, "Menu berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update menu");
@@ -948,9 +956,11 @@ service /api/v1/master/menu on apiListener {
 
     # DELETE /api/v1/master/menu/{id} — hard delete; blocked while active sub-menu exist.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id]() returns http:Response {
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+            returns http:Response {
         do {
-            check services:deleteMenu(id);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:deleteMenu(id, subject);
             return successHttp(http:STATUS_OK, (), "Menu berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete menu");
@@ -1097,9 +1107,11 @@ service /api/v1/master/role\-menus on apiListener {
 
     # PUT /api/v1/master/role-menus/{roleId} — replace the role's entire assigned-menu set.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function put [int roleId](@http:Payload models:RoleMenuUpdateRequest payload) returns http:Response {
+    resource function put [int roleId](@http:Header {name: "Authorization"} string? authorization,
+            @http:Payload models:RoleMenuUpdateRequest payload) returns http:Response {
         do {
-            models:RoleMenuMatrix matrix = check services:replaceRoleMenus(roleId, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:RoleMenuMatrix matrix = check services:replaceRoleMenus(roleId, payload, subject);
             return successHttp(http:STATUS_OK, matrix, "Menu role berhasil disimpan");
         } on fail error err {
             return errorHttp(err, "Failed to save role menus");
@@ -2678,8 +2690,8 @@ service /api/v1/manajemen\-user on apiListener {
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
             @http:Payload models:UserCreateRequest payload) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            models:UserCacheItem created = check services:createUser(payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:UserCacheItem created = check services:createUser(payload, subject);
             return successHttp(http:STATUS_CREATED, created, "User berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create user");
@@ -2691,8 +2703,8 @@ service /api/v1/manajemen\-user on apiListener {
     resource function put [string subjectId](@http:Header {name: "Authorization"} string? authorization,
             @http:Payload models:UserUpdateRequest payload) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            models:UserCacheItem updated = check services:updateUser(subjectId, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:UserCacheItem updated = check services:updateUser(subjectId, payload, subject);
             return successHttp(http:STATUS_OK, updated, "User berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update user");
@@ -2704,8 +2716,8 @@ service /api/v1/manajemen\-user on apiListener {
     resource function put [string subjectId]/role(@http:Header {name: "Authorization"} string? authorization,
             @http:Payload models:UserRoleUpdateRequest payload) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            models:UserCacheItem updated = check services:setUserRole(subjectId, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:UserCacheItem updated = check services:setUserRole(subjectId, payload, subject);
             return successHttp(http:STATUS_OK, updated, "Role user berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to set user role");
@@ -2717,8 +2729,8 @@ service /api/v1/manajemen\-user on apiListener {
     resource function put [string subjectId]/status(@http:Header {name: "Authorization"} string? authorization,
             @http:Payload models:UserStatusUpdateRequest payload) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            models:UserCacheItem updated = check services:setUserStatus(subjectId, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:UserCacheItem updated = check services:setUserStatus(subjectId, payload, subject);
             return successHttp(http:STATUS_OK, updated, "Status user berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to set user status");
@@ -2745,8 +2757,8 @@ service /api/v1/manajemen\-user on apiListener {
     resource function put [string subjectId]/akun(@http:Header {name: "Authorization"} string? authorization,
             @http:Payload models:UserAccountUpdateRequest payload) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            models:AkunProfile updated = check services:updateUserAccount(subjectId, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:AkunProfile updated = check services:updateUserAccount(subjectId, payload, subject);
             return successHttp(http:STATUS_OK, updated, "Akun user berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update user akun");
@@ -2759,8 +2771,8 @@ service /api/v1/manajemen\-user on apiListener {
     resource function put [string subjectId]/password(@http:Header {name: "Authorization"} string? authorization,
             @http:Payload models:PasswordUpdateRequest payload) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            check services:updateUserPassword(subjectId, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:updateUserPassword(subjectId, payload, subject);
             return successHttp(http:STATUS_OK, (), "Password user berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update user password");
@@ -3320,8 +3332,8 @@ service /api/v1/master/kategori\-finansial\-keluar on apiListener {
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
             @http:Payload models:KategoriFinansialKeluarUpdateRequest payload) returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            models:KategoriFinansialKeluar updated = check services:updateKategoriFinansialKeluar(id, payload);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            models:KategoriFinansialKeluar updated = check services:updateKategoriFinansialKeluar(id, payload, subject);
             return successHttp(http:STATUS_OK, updated, "Kategori finansial keluar berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update kategori finansial keluar");
@@ -3333,8 +3345,8 @@ service /api/v1/master/kategori\-finansial\-keluar on apiListener {
     resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
             returns http:Response {
         do {
-            _ = check utils:subjectFromAccessToken(authorization);
-            check services:deleteKategoriFinansialKeluar(id);
+            string subject = check utils:subjectFromAccessToken(authorization);
+            check services:deleteKategoriFinansialKeluar(id, subject);
             return successHttp(http:STATUS_OK, (), "Kategori finansial keluar berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete kategori finansial keluar");
