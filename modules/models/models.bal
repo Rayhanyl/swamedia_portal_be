@@ -3132,6 +3132,8 @@ public type UserAccountUpdateRequest record {|
 # + organization - the current organization, or ()
 # + country - the current country, or ()
 # + roleId - the current `swaportal_role_id`, or () if unset/not resolvable from the response
+# + roleName - the role's `nama_role`, resolved locally from the `role` table (not stored in WSO2
+# IS) — () if `roleId` is unset or the role no longer exists
 # + groupId - the current `swaportal_group_id`, or ()
 public type AkunProfile record {|
     string subjectId;
@@ -3142,5 +3144,6 @@ public type AkunProfile record {|
     string? organization;
     string? country;
     int? roleId;
+    string? roleName;
     string? groupId;
 |};

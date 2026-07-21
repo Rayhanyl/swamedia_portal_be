@@ -265,6 +265,7 @@ function replaceSchemaOp(string schemaUrn, string attr, json val) returns json {
 # + return - the parsed snapshot
 function parseAkunProfile(string subjectId, json scimResponse) returns models:AkunProfile {
     json? nameBlock = scimResponse is map<json> ? scimResponse["name"] : ();
+    int? roleId = extractRoleId(scimResponse);
     return {
         subjectId: subjectId,
         email: firstArrayValue(scimResponse, "emails"),
@@ -273,7 +274,8 @@ function parseAkunProfile(string subjectId, json scimResponse) returns models:Ak
         telepon: extractTelepon(scimResponse),
         organization: schemaAttrString(scimResponse, SCIM_ENTERPRISE_SCHEMA, "organization"),
         country: schemaAttrString(scimResponse, SCIM_WSO2_SCHEMA, "country"),
-        roleId: extractRoleId(scimResponse),
+        roleId: roleId,
+        roleName: lookupRoleName(roleId),
         groupId: schemaAttrString(scimResponse, config:scimRoleClaimSchema, config:appGroupClaim)
     };
 }

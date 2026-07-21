@@ -828,9 +828,9 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
     delete:
       tags: [Kategori Surat]
-      summary: Soft delete kategori surat
+      summary: Hapus kategori surat (hard delete)
       x-roles-allowed: [Super Admin, Direktur, Manager, Finance]
-      description: Ditolak jika kategori bawaan (isDefault=true) atau masih dipakai nomor_surat aktif.
+      description: Ditolak jika kategori bawaan (isDefault=true) atau pernah dipakai nomor_surat.
       responses:
         '200': {description: Kategori surat dihapus}
         '401': {$ref: '#/components/responses/Unauthorized'}

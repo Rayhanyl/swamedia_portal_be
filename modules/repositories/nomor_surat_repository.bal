@@ -6,10 +6,12 @@ import rayha/swamedia_portal_be.models;
 #
 # All access to the `nomor_surat` table. Parameterized `sql:ParameterizedQuery` templates only
 # (never string concatenation). List/detail reads JOIN kategori_surat and LEFT JOIN proyek to
-# resolve display names in a single query (no N+1). The kategori_surat JOIN is intentionally NOT
-# filtered by is_deleted, so a letter still shows its category code/name even if that category
-# was later soft-deleted; the proyek LEFT JOIN is filtered by is_deleted so a soft-deleted
-# project surfaces null display names (matching the customer repository's convention).
+# resolve display names in a single query (no N+1). The kategori_surat JOIN is a plain INNER JOIN
+# with no is_deleted filter to worry about — `kategori_surat` has no soft delete (it's hard-deleted,
+# and only when zero nomor_surat rows reference it — see kategori_surat_repository.bal), so the
+# category a letter points at is guaranteed to still exist. The proyek LEFT JOIN, by contrast, IS
+# filtered by is_deleted so a soft-deleted project surfaces null display names (matching the
+# customer repository's convention).
 #
 # SCHEMA v2 NOTE: `nomor_surat` has no `nomor`/`urutan` columns — only a single `no_surat`
 # (UNIQUE) column, plus a dedicated `is_dibatalkan` flag distinct from the standard `is_deleted`

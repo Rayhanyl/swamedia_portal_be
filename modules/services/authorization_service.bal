@@ -33,6 +33,47 @@ const int ROLE_PERMISSION_CACHE_TTL_SECONDS = 300;
 # schema implementation note #2).
 const string ROLE_CLAIM = "swaportal_role_id";
 
+# Coerces a `swaportal_role_id` claim value into an int, coping with it arriving as a JSON number,
+# decimal, float, or numeric string (observed to vary between JWT claims, userinfo, and SCIM2).
+#
+# + claim - the raw claim value
+# + return - the parsed role id, or () if absent/blank/unparseable
+function parseRoleIdClaim(json? claim) returns int? {
+    if claim is int {
+        return claim;
+    } else if claim is decimal {
+        return <int>claim;
+    } else if claim is float {
+        return <int>claim;
+    } else if claim is string && claim.trim().length() > 0 {
+        int|error parsed = int:fromString(claim.trim());
+        if parsed is int {
+            return parsed;
+        }
+    }
+    return ();
+}
+
+# Best-effort role-name lookup by id, resolved against the local `role` table — the only source of
+# truth for role names (WSO2 IS stores just `swaportal_role_id`, never a real FK — see
+# role_repository.bal). Every caller treats the name as a nice-to-have display field, so lookup
+# failures (unknown/deleted role id, DB hiccup) are logged and swallowed rather than failing the
+# caller's whole response.
+#
+# + roleId - the portal role id, or () if the user has none
+# + return - the role's `nama_role`, or () if unset/not resolvable
+function lookupRoleName(int? roleId) returns string? {
+    if roleId is () {
+        return ();
+    }
+    models:Role?|error role = repositories:findRoleById(roleId);
+    if role is error {
+        log:printError("findRoleById failed while resolving role name", role);
+        return ();
+    }
+    return role?.namaRole;
+}
+
 # Authorizes one request: () when allowed, a FORBIDDEN/UNAUTHORIZED `AppError` when denied, or a
 # plain `error` if the permission lookup itself failed (infrastructure). A no-op when
 # `config:permissionEnforcementEnabled` is false.
@@ -75,21 +116,7 @@ function resolveRoleId(string accessToken) returns int|models:AppError {
         return info;
     }
 
-    json? claim = info[ROLE_CLAIM];
-    int? roleId = ();
-    if claim is int {
-        roleId = claim;
-    } else if claim is decimal {
-        roleId = <int>claim;
-    } else if claim is float {
-        roleId = <int>claim;
-    } else if claim is string && claim.trim().length() > 0 {
-        int|error parsed = int:fromString(claim.trim());
-        if parsed is int {
-            roleId = parsed;
-        }
-    }
-
+    int? roleId = parseRoleIdClaim(info[ROLE_CLAIM]);
     if roleId is () {
         return utils:forbiddenError(
             "Akun Anda belum memiliki role (swaportal_role_id). Hubungi administrator.");

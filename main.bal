@@ -759,13 +759,11 @@ service /api/v1/master/kategori\-surat on apiListener {
         }
     }
 
-    # DELETE /api/v1/master/kategori-surat/{id} — soft delete (is_deleted = true).
+    # DELETE /api/v1/master/kategori-surat/{id} — hard delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
-            returns http:Response {
+    resource function delete [int id]() returns http:Response {
         do {
-            string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteKategoriSurat(id, subject);
+            check services:deleteKategoriSurat(id);
             return successHttp(http:STATUS_OK, (), "Kategori surat berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete kategori surat");

@@ -6,9 +6,15 @@ import rayha/swamedia_portal_be.models;
 #
 # All access to the `kategori_surat` table. Parameterized `sql:ParameterizedQuery` templates
 # only. The `is_default` column comes from the v1.7 addendum migration.
+#
+# Deliberately NOT soft-deleted (unlike most master tables): `nama` carries a plain DB-level
+# UNIQUE constraint (`uq_kategori_surat_nama`) with no `is_deleted` in its scope, so a soft-deleted
+# row would keep blocking reuse of its name/code forever while looking "available" to the app's
+# own existence checks — see `deleteKategoriSurat` for the hard-delete + reference-check pair that
+# keeps this consistent.
 
-# Fetches one page of non-deleted kategori surat matching the optional search filter, plus the
-# total count. `search` matches kode OR nama (ILIKE).
+# Fetches one page of kategori surat matching the optional search filter, plus the total count.
+# `search` matches kode OR nama (ILIKE).
 #
 # + search - optional case-insensitive filter on kode or nama
 # + status - optional exact filter on status (AKTIF / TIDAK_AKTIF)
@@ -30,7 +36,7 @@ public function findKategoriSurat(string? search, string? status, int 'limit, in
 
     sql:ParameterizedQuery[] selectParts = [
         `SELECT id, kode, nama, status, is_default AS "isDefault"
-         FROM kategori_surat WHERE is_deleted = false`
+         FROM kategori_surat WHERE 1=1`
     ];
     foreach sql:ParameterizedQuery c in conditions {
         selectParts.push(c);
@@ -41,7 +47,7 @@ public function findKategoriSurat(string? search, string? status, int 'limit, in
     models:KategoriSurat[] items = check from models:KategoriSurat k in dbc->query(selectQuery, models:KategoriSurat)
         select k;
 
-    sql:ParameterizedQuery[] countParts = [`SELECT count(*) FROM kategori_surat WHERE is_deleted = false`];
+    sql:ParameterizedQuery[] countParts = [`SELECT count(*) FROM kategori_surat WHERE 1=1`];
     foreach sql:ParameterizedQuery c in conditions {
         countParts.push(c);
     }
@@ -51,24 +57,24 @@ public function findKategoriSurat(string? search, string? status, int 'limit, in
     return {items: items, totalItems: totalItems};
 }
 
-# Fetches a single non-deleted kategori surat (with is_default + audit columns) by id.
+# Fetches a single kategori surat (with is_default + audit columns) by id.
 #
 # + id - the kategori surat id
-# + return - the kategori surat, `()` if not found (or already deleted), or an error
+# + return - the kategori surat, `()` if not found, or an error
 public function findKategoriSuratById(int id) returns models:KategoriSurat?|error {
     postgresql:Client dbc = check dbClient();
     models:KategoriSurat|sql:Error result = dbc->queryRow(`
         SELECT id, kode, nama, status, is_default AS "isDefault",
                created_at::text AS "createdAt", updated_at::text AS "updatedAt",
                created_by AS "createdBy", updated_by AS "updatedBy"
-        FROM kategori_surat WHERE id = ${id} AND is_deleted = false`, models:KategoriSurat);
+        FROM kategori_surat WHERE id = ${id}`, models:KategoriSurat);
     if result is sql:NoRowsError {
         return ();
     }
     return result;
 }
 
-# Returns whether another non-deleted kategori surat already uses the given kode.
+# Returns whether another kategori surat already uses the given kode.
 # `excludeId` skips a specific row (pass 0 on insert; the target id on update).
 #
 # + kode - the kode to check
@@ -78,11 +84,11 @@ public function kategoriSuratKodeExists(string kode, int excludeId) returns bool
     postgresql:Client dbc = check dbClient();
     int count = check dbc->queryRow(`
         SELECT count(*) FROM kategori_surat
-        WHERE kode = ${kode} AND is_deleted = false AND id <> ${excludeId}`);
+        WHERE kode = ${kode} AND id <> ${excludeId}`);
     return count > 0;
 }
 
-# Returns whether another non-deleted kategori surat already uses the given nama.
+# Returns whether another kategori surat already uses the given nama.
 #
 # + nama - the nama to check
 # + excludeId - a kategori surat id to exclude from the check (0 = none)
@@ -91,18 +97,21 @@ public function kategoriSuratNamaExists(string nama, int excludeId) returns bool
     postgresql:Client dbc = check dbClient();
     int count = check dbc->queryRow(`
         SELECT count(*) FROM kategori_surat
-        WHERE nama = ${nama} AND is_deleted = false AND id <> ${excludeId}`);
+        WHERE nama = ${nama} AND id <> ${excludeId}`);
     return count > 0;
 }
 
-# Returns whether this kategori surat is still used by any non-deleted nomor_surat row.
+# Returns whether this kategori surat is still used by any nomor_surat row, active or not. Checked
+# unconditionally (not just `is_deleted = false` rows) because deletion here is a hard DELETE —
+# `nomor_surat_kategori_fkey` has no ON DELETE clause, so even a historical/cancelled nomor_surat
+# row would otherwise turn a delete into a raw FK-violation error instead of a clean conflict.
 #
 # + id - the kategori surat id
-# + return - true if referenced by an active nomor_surat, or an error
+# + return - true if referenced by any nomor_surat, or an error
 public function isKategoriSuratReferenced(int id) returns boolean|error {
     postgresql:Client dbc = check dbClient();
     boolean referenced = check dbc->queryRow(
-        `SELECT EXISTS(SELECT 1 FROM nomor_surat WHERE kategori_surat_id = ${id} AND is_deleted = false)`);
+        `SELECT EXISTS(SELECT 1 FROM nomor_surat WHERE kategori_surat_id = ${id})`);
     return referenced;
 }
 
@@ -134,14 +143,14 @@ public function insertKategoriSurat(string kode, string nama, string status, str
 # + nama - new name
 # + status - new status (AKTIF / TIDAK_AKTIF)
 # + updatedBy - the `sub` claim of the caller
-# + return - the updated kategori surat, `()` if the row does not exist (or is deleted), or an error
+# + return - the updated kategori surat, `()` if the row does not exist, or an error
 public function updateKategoriSurat(int id, string kode, string nama, string status, string updatedBy)
         returns models:KategoriSurat?|error {
     postgresql:Client dbc = check dbClient();
     models:KategoriSurat|sql:Error updated = dbc->queryRow(`
         UPDATE kategori_surat SET kode = ${kode}, nama = ${nama}, status = ${status},
                updated_by = ${updatedBy}, updated_at = now()
-        WHERE id = ${id} AND is_deleted = false
+        WHERE id = ${id}
         RETURNING id, kode, nama, status, is_default AS "isDefault",
                   created_at::text AS "createdAt", updated_at::text AS "updatedAt",
                   created_by AS "createdBy", updated_by AS "updatedBy"`, models:KategoriSurat);
@@ -151,16 +160,16 @@ public function updateKategoriSurat(int id, string kode, string nama, string sta
     return updated;
 }
 
-# Soft-deletes a kategori surat (sets is_deleted = true). Never physically deletes.
+# Hard-deletes a kategori surat. The caller (`kategori_surat_service:deleteKategoriSurat`) must
+# already have confirmed via `isKategoriSuratReferenced` that no nomor_surat row points at this id
+# — `nomor_surat_kategori_fkey` has no ON DELETE clause, so a still-referenced row would otherwise
+# surface as a raw FK-violation error here.
 #
 # + id - the kategori surat id
-# + updatedBy - the `sub` claim of the caller
-# + return - true if a row was updated, false if it did not exist (or was already deleted), or an error
-public function softDeleteKategoriSurat(int id, string updatedBy) returns boolean|error {
+# + return - true if a row was deleted, false if it did not exist, or an error
+public function deleteKategoriSurat(int id) returns boolean|error {
     postgresql:Client dbc = check dbClient();
-    sql:ExecutionResult result = check dbc->execute(`
-        UPDATE kategori_surat SET is_deleted = true, updated_by = ${updatedBy}, updated_at = now()
-        WHERE id = ${id} AND is_deleted = false`);
+    sql:ExecutionResult result = check dbc->execute(`DELETE FROM kategori_surat WHERE id = ${id}`);
     int? affected = result.affectedRowCount;
     return affected is int && affected > 0;
 }

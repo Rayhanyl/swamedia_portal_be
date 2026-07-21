@@ -112,13 +112,14 @@ public function updateKategoriSurat(int id, models:KategoriSuratUpdateRequest pa
     return updated;
 }
 
-# Soft-deletes a kategori surat. Rejects built-in (default) categories outright, then guards
-# against deleting a category already used by nomor_surat.
+# Hard-deletes a kategori surat (no soft delete — see kategori_surat_repository.bal for why: `nama`
+# carries a plain DB-level UNIQUE constraint, so a soft-deleted row would keep blocking reuse of its
+# own name/code forever). Rejects built-in (default) categories outright, then guards against
+# deleting a category ever used by a nomor_surat.
 #
 # + id - the kategori surat id to delete
-# + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteKategoriSurat(int id, string subject) returns error? {
+public function deleteKategoriSurat(int id) returns error? {
     models:KategoriSurat? existing = check repositories:findKategoriSuratById(id);
     if existing is () {
         return utils:notFoundError("Kategori surat dengan id " + id.toString() + " tidak ditemukan");
@@ -129,13 +130,13 @@ public function deleteKategoriSurat(int id, string subject) returns error? {
         return utils:conflictError("Kategori surat bawaan (default) tidak dapat dihapus");
     }
 
-    // (b) otherwise, block deletion while it is still referenced by a nomor_surat.
+    // (b) otherwise, block deletion while it is (or ever was) referenced by a nomor_surat.
     boolean referenced = check repositories:isKategoriSuratReferenced(id);
     if referenced {
         return utils:conflictError("Kategori surat tidak dapat dihapus karena sudah dipakai pada penomoran surat");
     }
 
-    boolean deleted = check repositories:softDeleteKategoriSurat(id, subject);
+    boolean deleted = check repositories:deleteKategoriSurat(id);
     if !deleted {
         return utils:notFoundError("Kategori surat dengan id " + id.toString() + " tidak ditemukan");
     }

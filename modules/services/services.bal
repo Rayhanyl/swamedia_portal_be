@@ -8,6 +8,13 @@ import rayha/swamedia_portal_be.utils;
 # How long a cached userinfo lookup stays valid before we hit WSO2 IS again.
 const int USERINFO_CACHE_TTL_SECONDS = 60;
 
+# Claim key the decoded user object gets enriched with — sits alongside `swaportal_role_id` (the
+# actual IS claim) so the frontend can read the role name directly off the login response instead
+# of firing a follow-up request. Resolved locally, never written back to WSO2 IS — see
+# `lookupRoleName` (authorization_service.bal) and role_repository.bal's note on the `role` table
+# being the sole source of truth for role names.
+const string ROLE_NAME_CLAIM = "swaportal_role_name";
+
 # Builds the public login response (token set + decoded user claims) from a WSO2 token response.
 # Shared by `login`, `exchangeToken`, and `refresh`.
 #
@@ -28,6 +35,10 @@ function buildLoginResponse(models:TokenResponse tokenResp) returns models:Login
         // of letting every later business call 403 on the declarative scope check.
         if !hasAppGroup(user) {
             return utils:forbiddenError("Akun Anda tidak memiliki akses ke portal ini");
+        }
+        string? roleName = lookupRoleName(parseRoleIdClaim(user[ROLE_CLAIM]));
+        if roleName is string {
+            user[ROLE_NAME_CLAIM] = roleName;
         }
     }
 
