@@ -8,9 +8,23 @@ Dua modul administrator: jejak audit (read-only) dan registry konfigurasi global
 
 # Modul: Audit Log
 
-Laporan atas tabel `audit_log` yang bersifat **append-only** — baris ditulis internal oleh proses
-lain (mis. saat surat dibatalkan), bukan lewat API ini. **Read-only**: tidak ada
-create/update/delete.
+Laporan atas tabel `audit_log` yang bersifat **append-only** — baris ditulis **otomatis oleh
+backend** setiap kali ada operasi Create/Update/Delete di modul mana pun, bukan lewat API ini.
+**Read-only**: endpoint di sini hanya untuk membaca (list & detail), tidak ada create/update/delete.
+
+**Kapan sebuah entri tercatat.** Setiap `POST` (CREATE), `PUT`/`PATCH` (UPDATE), dan `DELETE`
+(baik soft delete maupun hard delete) yang berhasil di modul bisnis akan menulis satu baris audit
+— mencakup Master Data, RBAC (role/menu/permission), Manajemen User, Proyek & turunannya, Kontrak,
+Finansial (termasuk approve/reject Pembayaran & Pengeluaran), Nomor Surat, dan Konfigurasi Sistem.
+Beberapa catatan:
+
+* **Best-effort, tidak memblokir.** Penulisan audit terjadi **setelah** perubahan aslinya commit;
+  bila penulisan audit gagal, error-nya hanya di-log server-side dan request tetap dianggap sukses.
+  Artinya audit_log dimaksudkan lengkap, tapi bukan jaminan transaksional 100%.
+* **Bukan semua aksi tulis.** Operasi baca, laporan, dan toggle status baca notifikasi
+  (mark-as-read) tidak diaudit — hanya perubahan data bisnis.
+* **`aktor` = pelaku, `recordId` = sasaran.** Untuk operasi admin atas user lain (mis. reset
+  password), `aktor` adalah admin yang menekan tombol, `recordId` adalah user target.
 
 **Base URL:** `/api/v1/audit-log` · **Modul RBAC:** `AUDIT_TRAIL`
 
@@ -39,7 +53,7 @@ create/update/delete.
 **Contoh request**
 
 ```http
-GET /api/v1/audit-log?table_name=nomor_surat&aksi=DELETE&date_from=2026-07-01&date_to=2026-07-31
+GET /api/v1/audit-log?table_name=customer&aksi=UPDATE&date_from=2026-07-01&date_to=2026-07-31
 Authorization: Bearer <accessToken>
 ```
 
@@ -51,15 +65,15 @@ Authorization: Bearer <accessToken>
   "message": "Daftar audit log berhasil diambil",
   "data": [
     {
-      "id": 501,
-      "tableName": "nomor_surat",
-      "recordId": "120",
-      "aksi": "DELETE",
+      "id": 502,
+      "tableName": "customer",
+      "recordId": "45",
+      "aksi": "UPDATE",
       "aktor": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "ipAddress": null,
       "perubahan": {
-        "is_dibatalkan": { "old": false, "new": true },
-        "alasan_pembatalan": { "old": null, "new": "Dibatalkan atas permintaan customer" }
+        "old": { "id": 45, "nama": "PT Lama", "statusPeluang": "PROSPEK" },
+        "new": { "id": 45, "nama": "PT Baru", "statusPeluang": "NEGOSIASI" }
       },
       "waktu": "2026-07-17T07:10:00.000Z"
     }
@@ -76,12 +90,12 @@ Authorization: Bearer <accessToken>
 
 | Field | Keterangan |
 | --- | --- |
-| `tableName` | Nama tabel yang diaudit. |
-| `recordId` | Id baris yang berubah — **string**, karena kunci sebagian tabel bukan angka. |
+| `tableName` | Nama tabel/entitas yang diaudit (mis. `customer`, `role`, `nomor_surat`, `user`, `sys_config`). |
+| `recordId` | Id baris yang berubah — **string**, karena kunci sebagian sasaran bukan angka (mis. `subjectId` user, atau `key` sys_config). |
 | `aksi` | `CREATE` / `UPDATE` / `DELETE`. |
 | `aktor` | `sub` WSO2 IS pelaku. Untuk nama, petakan lewat [Manajemen User](04-rbac.md#modul-manajemen-user). |
 | `ipAddress` | Alamat IP pemanggil. **Saat ini selalu `null`** (belum diisi di mana pun). |
-| `perubahan` | Detail perubahan berbentuk objek `{ "kolom": { "old": ..., "new": ... } }`. **`null` bila tidak ada** yang tercatat. Bentuknya JSON bebas — tangani secara defensif di UI. |
+| `perubahan` | Snapshot perubahan berbentuk `{ "old": ..., "new": ... }`. **`old`/`new` berisi rekaman utuh** (bukan diff per-kolom): pada `CREATE` `old` bernilai `null`, pada `DELETE` `new` bernilai `null`, pada `UPDATE` keduanya terisi. Beberapa kasus khusus mengisi ringkasan aksi alih-alih rekaman penuh (mis. reset password → `{ "action": "password_reset" }`, dan password **tidak pernah** ikut dicatat). Tangani secara defensif di UI. |
 | `waktu` | Waktu perubahan terjadi. |
 
 ## `GET /api/v1/audit-log/{id}`

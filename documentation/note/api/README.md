@@ -98,6 +98,9 @@ Konsekuensi untuk frontend:
   refresh juga gagal, arahkan ke halaman login.
 * Field audit (`createdBy`, `updatedBy`) diisi backend dari klaim `sub` token. **Jangan pernah
   mengirimnya di body** — akan diabaikan.
+* Setiap Create/Update/Delete yang berhasil di modul bisnis **otomatis mencatat jejak ke
+  `audit_log`** (pelaku = `sub` token). Frontend tidak perlu melakukan apa pun untuk ini; jejaknya
+  dibaca lewat modul [Audit Log](08-administrasi.md#modul-audit-log).
 
 ## 4. Otorisasi (RBAC)
 
