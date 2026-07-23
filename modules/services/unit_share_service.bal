@@ -26,7 +26,7 @@ public function getUnitShare(int proyekId) returns models:UnitShare[]|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created share, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function createUnitShare(int proyekId, models:UnitShareCreateRequest payload, string subject)
+public function createUnitShare(int proyekId, models:UnitShareCreateRequest payload, string subject, string? ipAddress = ())
         returns models:UnitShare|error {
     models:Proyek proyek = check requireProyek(proyekId);
     check validateUnitShareValue(payload.nilaiShare, payload?.persentase);
@@ -40,7 +40,7 @@ public function createUnitShare(int proyekId, models:UnitShareCreateRequest payl
 
     models:UnitShare created = check repositories:insertUnitShare(proyekId, payload.unitId, payload.nilaiShare,
             payload?.persentase, subject);
-    logAudit("unit_share", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("unit_share", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -52,7 +52,7 @@ public function createUnitShare(int proyekId, models:UnitShareCreateRequest payl
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated share, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateUnitShare(int proyekId, int id, models:UnitShareUpdateRequest payload, string subject)
+public function updateUnitShare(int proyekId, int id, models:UnitShareUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:UnitShare|error {
     models:Proyek proyek = check requireProyek(proyekId);
     check validateUnitShareValue(payload.nilaiShare, payload?.persentase);
@@ -74,7 +74,7 @@ public function updateUnitShare(int proyekId, int id, models:UnitShareUpdateRequ
     if updated is () {
         return utils:notFoundError("Unit share dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("unit_share", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("unit_share", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -84,7 +84,7 @@ public function updateUnitShare(int proyekId, int id, models:UnitShareUpdateRequ
 # + id - the share id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteUnitShare(int proyekId, int id, string subject) returns error? {
+public function deleteUnitShare(int proyekId, int id, string subject, string? ipAddress = ()) returns error? {
     _ = check requireProyek(proyekId);
     // Read the row before deleting purely so the audit entry can record what was removed.
     models:UnitShare? existing = check repositories:findUnitShareById(id, proyekId);
@@ -92,7 +92,7 @@ public function deleteUnitShare(int proyekId, int id, string subject) returns er
     if !deleted {
         return utils:notFoundError("Unit share dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("unit_share", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject);
+    logAudit("unit_share", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

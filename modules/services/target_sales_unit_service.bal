@@ -56,7 +56,7 @@ public function getTargetSalesUnitById(int id) returns models:TargetSalesUnit|er
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created row, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createTargetSalesUnit(models:TargetSalesUnitCreateRequest payload, string subject)
+public function createTargetSalesUnit(models:TargetSalesUnitCreateRequest payload, string subject, string? ipAddress = ())
         returns models:TargetSalesUnit|error {
     check validateProyekTahun(payload.tahun);
     decimal tw1 = payload?.targetTw1 ?: 0d;
@@ -76,7 +76,7 @@ public function createTargetSalesUnit(models:TargetSalesUnitCreateRequest payloa
 
     models:TargetSalesUnit created = check repositories:insertTargetSalesUnit(payload.unitId, payload.tahun,
             tw1, tw2, tw3, tw4, subject);
-    logAudit("target_sales_unit", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("target_sales_unit", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -87,7 +87,7 @@ public function createTargetSalesUnit(models:TargetSalesUnitCreateRequest payloa
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated row, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateTargetSalesUnit(int id, models:TargetSalesUnitUpdateRequest payload, string subject)
+public function updateTargetSalesUnit(int id, models:TargetSalesUnitUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:TargetSalesUnit|error {
     check validateProyekTahun(payload.tahun);
     decimal tw1 = payload?.targetTw1 ?: 0d;
@@ -115,7 +115,7 @@ public function updateTargetSalesUnit(int id, models:TargetSalesUnitUpdateReques
     if updated is () {
         return utils:notFoundError("Target sales unit dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("target_sales_unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("target_sales_unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -124,13 +124,13 @@ public function updateTargetSalesUnit(int id, models:TargetSalesUnitUpdateReques
 # + id - the target_sales_unit id to delete
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteTargetSalesUnit(int id, string subject) returns error? {
+public function deleteTargetSalesUnit(int id, string subject, string? ipAddress = ()) returns error? {
     // Read the row before deleting purely so the audit entry can record what was removed.
     models:TargetSalesUnit? existing = check repositories:findTargetSalesUnitById(id);
     boolean deleted = check repositories:deleteTargetSalesUnit(id);
     if !deleted {
         return utils:notFoundError("Target sales unit dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("target_sales_unit", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject);
+    logAudit("target_sales_unit", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject, ipAddress);
     return ();
 }

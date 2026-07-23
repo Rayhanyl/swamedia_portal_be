@@ -111,6 +111,23 @@ public configurable string redisPassword = "";
 public configurable int redisDatabase = 0;
 public configurable int redisConnectionTimeoutSeconds = 3;
 
+# ===== SMTP (transactional email transport) =====
+# Currently used only by services:sendTeamMemberUndangan (team_member_service.bal) to email a
+# karyawan when they're assigned to a proyek team. The on/off switch and sender address are
+# admin-editable at runtime via `sys_config` (`notif_team_member_aktif`/`notif_email_pengirim`) —
+# these configurables are only the SMTP transport credentials, which must stay in the local,
+# gitignored Config.toml / Config.docker.toml (see Config.docker.toml.example), never in the DB or
+# source. Empty `smtpHost` lets `bal build`/`bal test` run without a mail server; actually sending
+# fails clearly until it's set.
+public configurable string smtpHost = "";
+public configurable int smtpPort = 587;
+public configurable string smtpUsername = "";
+public configurable string smtpPassword = "";
+# One of START_TLS_AUTO / START_TLS_ALWAYS / START_TLS_NEVER / SSL (mirrors `email:Security`).
+public configurable string smtpSecurity = "START_TLS_AUTO";
+# Fallback sender address, only used if `sys_config.notif_email_pengirim` is unset.
+public configurable string smtpFromAddressFallback = "no-reply@swamedia.co.id";
+
 # ===== RBAC permission enforcement (PermissionInterceptor in main.bal) =====
 # Master switch for the per-service role/permission middleware. When true (secure default),
 # every gated business service checks the caller's role_permission matrix (resolved from the

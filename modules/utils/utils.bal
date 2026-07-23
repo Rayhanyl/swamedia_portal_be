@@ -2,6 +2,32 @@ import ballerina/jwt;
 import rayha/swamedia_portal_be.config;
 import rayha/swamedia_portal_be.models;
 
+# Resolves the caller's IP from the standard reverse-proxy headers. There is no implicit
+# request-scoped context in this Ballerina distribution (2201.13.4 has no `runtime:
+# getInvocationContext`, and `http:RequestContext` is only reachable from interceptors/resource
+# functions, not from arbitrary nested service calls) — so unlike `subject`, the IP genuinely has
+# to be read per-request in main.bal and threaded through as a parameter down to
+# `audit_log_service:logAudit`, the same way `subject` already is.
+#
+# + xForwardedFor - the `X-Forwarded-For` header value, if present (`"client, proxy1, proxy2"` —
+#   the first hop is the original client)
+# + xRealIp - the `X-Real-IP` header value, if present (checked when `X-Forwarded-For` is absent)
+# + return - the resolved client IP, or () if neither header was present (e.g. unproxied local dev)
+public function resolveClientIp(string? xForwardedFor, string? xRealIp) returns string? {
+    if xForwardedFor is string {
+        int? commaIdx = xForwardedFor.indexOf(",");
+        string first = commaIdx is int ? xForwardedFor.substring(0, commaIdx) : xForwardedFor;
+        string trimmed = first.trim();
+        if trimmed.length() > 0 {
+            return trimmed;
+        }
+    }
+    if xRealIp is string && xRealIp.trim().length() > 0 {
+        return xRealIp.trim();
+    }
+    return ();
+}
+
 # ===== API response helpers (see note/API-Response-Standard.md) =====
 
 # + data - the response payload

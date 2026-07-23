@@ -57,7 +57,7 @@ public function getKontrakPayungById(int id) returns models:KontrakPayung|error 
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created contract, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createKontrakPayung(models:KontrakPayungCreateRequest payload, string subject)
+public function createKontrakPayung(models:KontrakPayungCreateRequest payload, string subject, string? ipAddress = ())
         returns models:KontrakPayung|error {
     string noKontrak = payload.noKontrakPayung.trim();
     string namaKontrak = payload.namaKontrak.trim();
@@ -88,7 +88,7 @@ public function createKontrakPayung(models:KontrakPayungCreateRequest payload, s
         }
         return created;
     }
-    logAudit("kontrak_payung", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("kontrak_payung", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -99,7 +99,7 @@ public function createKontrakPayung(models:KontrakPayungCreateRequest payload, s
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated contract, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateKontrakPayung(int id, models:KontrakPayungUpdateRequest payload, string subject)
+public function updateKontrakPayung(int id, models:KontrakPayungUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:KontrakPayung|error {
     string noKontrak = payload.noKontrakPayung.trim();
     string namaKontrak = payload.namaKontrak.trim();
@@ -140,7 +140,7 @@ public function updateKontrakPayung(int id, models:KontrakPayungUpdateRequest pa
     if updated is () {
         return utils:notFoundError("Kontrak payung dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("kontrak_payung", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("kontrak_payung", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -150,7 +150,7 @@ public function updateKontrakPayung(int id, models:KontrakPayungUpdateRequest pa
 # + id - the kontrak payung id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteKontrakPayung(int id, string subject) returns error? {
+public function deleteKontrakPayung(int id, string subject, string? ipAddress = ()) returns error? {
     models:KontrakPayung? existing = check repositories:findKontrakPayungById(id);
     if existing is () {
         return utils:notFoundError("Kontrak payung dengan id " + id.toString() + " tidak ditemukan");
@@ -164,7 +164,7 @@ public function deleteKontrakPayung(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Kontrak payung dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("kontrak_payung", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("kontrak_payung", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

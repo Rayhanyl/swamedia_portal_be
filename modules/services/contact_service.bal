@@ -60,7 +60,7 @@ public function getContactById(int id) returns models:Contact|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created contact, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createContact(models:ContactCreateRequest payload, string subject)
+public function createContact(models:ContactCreateRequest payload, string subject, string? ipAddress = ())
         returns models:Contact|error {
     check validateCustomerRef(payload.customerId);
 
@@ -86,7 +86,7 @@ public function createContact(models:ContactCreateRequest payload, string subjec
     }
 
     models:Contact created = check repositories:insertContact(payload.customerId, nama, jabatan, email, telepon, tipeKontak, subject);
-    logAudit("contact", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("contact", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -96,7 +96,7 @@ public function createContact(models:ContactCreateRequest payload, string subjec
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated contact, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateContact(int id, models:ContactUpdateRequest payload, string subject)
+public function updateContact(int id, models:ContactUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:Contact|error {
     check validateCustomerRef(payload.customerId);
 
@@ -130,7 +130,7 @@ public function updateContact(int id, models:ContactUpdateRequest payload, strin
     if updated is () {
         return utils:notFoundError("Contact dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("contact", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("contact", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -140,7 +140,7 @@ public function updateContact(int id, models:ContactUpdateRequest payload, strin
 # + id - the contact id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteContact(int id, string subject) returns error? {
+public function deleteContact(int id, string subject, string? ipAddress = ()) returns error? {
     models:Contact? existing = check repositories:findContactById(id);
     if existing is () {
         return utils:notFoundError("Contact dengan id " + id.toString() + " tidak ditemukan");
@@ -150,7 +150,7 @@ public function deleteContact(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Contact dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("contact", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("contact", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

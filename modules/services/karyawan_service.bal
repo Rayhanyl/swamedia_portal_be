@@ -1,4 +1,6 @@
 import ballerina/lang.regexp;
+import ballerina/log;
+import ballerina/time;
 import rayha/swamedia_portal_be.models;
 import rayha/swamedia_portal_be.repositories;
 import rayha/swamedia_portal_be.utils;
@@ -70,7 +72,7 @@ public function getKaryawanById(int id) returns models:KaryawanDetail|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created karyawan detail, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createKaryawan(models:KaryawanCreateRequest payload, string subject)
+public function createKaryawan(models:KaryawanCreateRequest payload, string subject, string? ipAddress = ())
         returns models:KaryawanDetail|error {
     string nik = payload.nik.trim();
     string nama = payload.nama.trim();
@@ -80,6 +82,11 @@ public function createKaryawan(models:KaryawanCreateRequest payload, string subj
     string status = payload?.status ?: "AKTIF";
     if !isValidKaryawanStatus(status) {
         return utils:validationError("Status harus AKTIF atau TIDAK_AKTIF");
+    }
+
+    string tipeKaryawan = payload?.tipeKaryawan ?: "P";
+    if !isValidTipeKaryawan(tipeKaryawan) {
+        return utils:validationError("Tipe karyawan harus P (Pegawai Tetap) atau C (Kontrak)");
     }
 
     check validateKaryawanUnit(payload.unitId);
@@ -99,14 +106,14 @@ public function createKaryawan(models:KaryawanCreateRequest payload, string subj
     check validateNoHp(noHp);
     string? tanggalMasuk = trimToNil(payload?.tanggalMasuk);
 
-    int newId = check repositories:insertKaryawan(nik, nama, payload.jabatanId, payload.unitId, email, noHp,
-            tanggalMasuk, status, subjectId, subject);
+    int newId = check repositories:insertKaryawan(nik, nama, payload.jabatanId, payload.unitId, tipeKaryawan,
+            email, noHp, tanggalMasuk, status, subjectId, subject);
 
     models:KaryawanDetail? created = check repositories:findKaryawanById(newId);
     if created is () {
         return error("Karyawan created (id " + newId.toString() + ") but could not be read back");
     }
-    logAudit("karyawan", newId.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("karyawan", newId.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -117,7 +124,7 @@ public function createKaryawan(models:KaryawanCreateRequest payload, string subj
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated karyawan detail, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateKaryawan(int id, models:KaryawanUpdateRequest payload, string subject)
+public function updateKaryawan(int id, models:KaryawanUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:KaryawanDetail|error {
     string nik = payload.nik.trim();
     string nama = payload.nama.trim();
@@ -126,6 +133,11 @@ public function updateKaryawan(int id, models:KaryawanUpdateRequest payload, str
 
     if !isValidKaryawanStatus(payload.status) {
         return utils:validationError("Status harus AKTIF atau TIDAK_AKTIF");
+    }
+
+    string tipeKaryawan = payload?.tipeKaryawan ?: "P";
+    if !isValidTipeKaryawan(tipeKaryawan) {
+        return utils:validationError("Tipe karyawan harus P (Pegawai Tetap) atau C (Kontrak)");
     }
 
     check validateKaryawanUnit(payload.unitId);
@@ -150,7 +162,7 @@ public function updateKaryawan(int id, models:KaryawanUpdateRequest payload, str
     string? tanggalMasuk = trimToNil(payload?.tanggalMasuk);
 
     int? updatedId = check repositories:updateKaryawan(id, nik, nama, payload.jabatanId,
-            payload.unitId, email, noHp, tanggalMasuk, payload.status, subjectId, subject);
+            payload.unitId, tipeKaryawan, email, noHp, tanggalMasuk, payload.status, subjectId, subject);
     if updatedId is () {
         return utils:notFoundError("Karyawan dengan id " + id.toString() + " tidak ditemukan");
     }
@@ -159,7 +171,7 @@ public function updateKaryawan(int id, models:KaryawanUpdateRequest payload, str
     if updated is () {
         return utils:notFoundError("Karyawan dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("karyawan", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("karyawan", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -182,7 +194,7 @@ public function getKaryawanDropdown(int? unitId, string? status, string? search)
 # + id - the karyawan id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteKaryawan(int id, string subject) returns error? {
+public function deleteKaryawan(int id, string subject, string? ipAddress = ()) returns error? {
     models:KaryawanDetail? existing = check repositories:findKaryawanById(id);
     if existing is () {
         return utils:notFoundError("Karyawan dengan id " + id.toString() + " tidak ditemukan");
@@ -203,8 +215,70 @@ public function deleteKaryawan(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Karyawan dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("karyawan", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("karyawan", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
+}
+
+# Computes the standard-format NIK a create would suggest RIGHT NOW, without reserving anything —
+# a pure read (SELECT MAX(urutan)+1), no transaction, no lock, no insert. Mirrors
+# nomor_surat_service:previewNomor. Format: `{prefix}-{tahunMasuk2Digit}{urutan:3}{tipeKaryawan}
+# {unit.kodeNik}` (e.g. "SWA-22309CSD") — see the module-level format note below `previewNik`'s
+# callers in main.bal and documentation/note/api/03-master-data.md#modul-karyawan. `tahun`
+# defaults to the current calendar year when the caller hasn't picked a tanggal masuk yet; pass
+# the actual tanggal-masuk year once known for an accurate suggestion. Calling this twice with no
+# create in between yields the same value; if another request commits a create first for the same
+# year, the value simply advances — that non-reservation is intentional, nik stays a free-text
+# field the caller can still override, and `nikExists` on create/update is the actual safety net
+# (see `getNextNikUrutan`'s doc for why there is no atomic counterpart here).
+#
+# NEVER suggests the founder/original-management format (`SWA-00001OCO` style) — that format is
+# frozen historical data for the company's founding cohort (see karyawan_seed.sql), not something
+# new hires (even Direktur/Manager-titled ones) ever get going forward.
+#
+# + unitId - the selected unit id (required — its `kode_nik` feeds the suggestion)
+# + tipeKaryawan - "P" (Pegawai Tetap) or "C" (Kontrak)
+# + tahun - optional numbering year (defaults to the current calendar year)
+# + return - the previewed next NIK, a VALIDATION_ERROR AppError (bad tipeKaryawan/unit), or an error
+public function previewNik(int unitId, string tipeKaryawan, int? tahun) returns models:KaryawanNikPreview|error {
+    if !isValidTipeKaryawan(tipeKaryawan) {
+        return utils:validationError("Tipe karyawan harus P (Pegawai Tetap) atau C (Kontrak)");
+    }
+    models:Unit? unit = check repositories:findUnitById(unitId);
+    if unit is () {
+        return utils:validationError("Unit tidak ditemukan");
+    }
+
+    int effectiveTahun = tahun ?: currentNikYear();
+    string tahun2Digit = repositories:pad2Digit(effectiveTahun);
+    string prefix = check resolveNikPrefix();
+    int urutan = check repositories:getNextNikUrutan(prefix, tahun2Digit);
+    return {nikPreview: repositories:formatNik(prefix, tahun2Digit, urutan, tipeKaryawan, unit.kodeNik)};
+}
+
+# The current calendar year (server time), used as the default `tahun` for `previewNik` when the
+# caller omits it. Deliberately its own copy rather than reusing nomor_surat_service:currentYear /
+# proyek_service:currentProyekYear — same precedent as those two not sharing with each other.
+#
+# + return - the current calendar year
+function currentNikYear() returns int {
+    time:Civil civil = time:utcToCivil(time:utcNow());
+    return civil.year;
+}
+
+# Resolves the NIK prefix from sys_config. The `prefix_nik` row is guaranteed to be seeded
+# (swamedia_portal_schema_v2.1.sql), so a missing/blank row is treated as a serious configuration
+# bug, NOT a condition to silently tolerate with a hardcoded fallback — mirrors
+# nomor_surat_service:resolvePrefix / proyek_service:resolveKodeProyekPrefix.
+#
+# + return - the trimmed NIK prefix, or an error
+function resolveNikPrefix() returns string|error {
+    string? prefix = check repositories:getPrefixNik();
+    if prefix is () || prefix.trim().length() == 0 {
+        log:printError("Konfigurasi sys_config.prefix_nik tidak ditemukan -- modul Karyawan "
+                + "tidak dapat menyarankan NIK tanpa konfigurasi ini, periksa seeding database");
+        return utils:internalError("Terjadi kesalahan pada server, silakan coba lagi nanti");
+    }
+    return prefix.trim();
 }
 
 # Validates nik (1-30), nama (3-150) and email (required + format).
@@ -301,4 +375,8 @@ function trimToNil(string? value) returns string? {
 
 function isValidKaryawanStatus(string status) returns boolean {
     return status == "AKTIF" || status == "TIDAK_AKTIF";
+}
+
+function isValidTipeKaryawan(string tipeKaryawan) returns boolean {
+    return tipeKaryawan == "P" || tipeKaryawan == "C";
 }

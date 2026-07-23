@@ -190,7 +190,7 @@ function buildMenuTree(models:Menu[] menus) returns models:MenuTreeNode[] {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the created menu, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createMenu(models:MenuCreateRequest payload, string subject) returns models:Menu|error {
+public function createMenu(models:MenuCreateRequest payload, string subject, string? ipAddress = ()) returns models:Menu|error {
     string kodeMenu = payload.kodeMenu.trim();
     check validateKodeMenu(kodeMenu);
     string namaMenu = payload.namaMenu.trim();
@@ -218,7 +218,7 @@ public function createMenu(models:MenuCreateRequest payload, string subject) ret
     }
 
     models:Menu created = check repositories:insertMenu(parentId, kodeMenu, namaMenu, path, icon, urutan, status);
-    logAudit("menu", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("menu", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -229,7 +229,7 @@ public function createMenu(models:MenuCreateRequest payload, string subject) ret
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the updated menu, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateMenu(int id, models:MenuUpdateRequest payload, string subject) returns models:Menu|error {
+public function updateMenu(int id, models:MenuUpdateRequest payload, string subject, string? ipAddress = ()) returns models:Menu|error {
     string kodeMenu = payload.kodeMenu.trim();
     check validateKodeMenu(kodeMenu);
     string namaMenu = payload.namaMenu.trim();
@@ -271,7 +271,7 @@ public function updateMenu(int id, models:MenuUpdateRequest payload, string subj
     if updated is () {
         return utils:notFoundError("Menu dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("menu", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("menu", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -281,7 +281,7 @@ public function updateMenu(int id, models:MenuUpdateRequest payload, string subj
 # + id - the menu id to delete
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteMenu(int id, string subject) returns error? {
+public function deleteMenu(int id, string subject, string? ipAddress = ()) returns error? {
     models:Menu? existing = check repositories:findMenuById(id);
     if existing is () {
         return utils:notFoundError("Menu dengan id " + id.toString() + " tidak ditemukan");
@@ -298,7 +298,7 @@ public function deleteMenu(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Menu dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("menu", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("menu", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
 
     foreach int roleId in affectedRoleIds {
         error? cacheErr = repositories:cacheDelete("role:" + roleId.toString() + ":menu");

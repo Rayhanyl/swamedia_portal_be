@@ -160,6 +160,43 @@ public function updateTeamMember(int id, int proyekId, int karyawanId, int roleI
     return findTeamMemberById(id, proyekId);
 }
 
+# Lists non-deleted team members of a proyek whose invitation email is still owed — status
+# BELUM_DIKIRIM (never attempted) or GAGAL (a previous attempt failed) — joined to the karyawan's
+# email/name and role name. Members already TERKIRIM are excluded, so re-running the send is
+# idempotent for them.
+#
+# + proyekId - the owning proyek id
+# + return - the pending targets, oldest first, or an error
+public function findTeamMemberPendingUndangan(int proyekId) returns models:TeamMemberUndanganTarget[]|error {
+    postgresql:Client dbc = check dbClient();
+    return from models:TeamMemberUndanganTarget t in dbc->query(`
+            SELECT tm.id, tm.karyawan_id AS "karyawanId", k.nama AS "karyawanNama", k.email AS "karyawanEmail",
+                   pr.nama_role AS "roleNama"
+            FROM team_member tm
+            JOIN karyawan k ON k.id = tm.karyawan_id
+            JOIN project_role_master pr ON pr.id = tm.role_id
+            WHERE tm.proyek_id = ${proyekId} AND tm.is_deleted = false
+                  AND tm.undangan_status IN ('BELUM_DIKIRIM', 'GAGAL')
+            ORDER BY tm.id ASC`, models:TeamMemberUndanganTarget)
+        select t;
+}
+
+# Records the outcome of one invitation-email attempt: sets `undangan_status`, stamps
+# `undangan_sent_at` to now (an attempt time either way — TERKIRIM or GAGAL — not only success), and
+# records who triggered it. Scoped to its proyek like every other team_member mutation.
+#
+# + id - the team_member id
+# + proyekId - the proyek the member must belong to
+# + status - TERKIRIM or GAGAL
+# + sentBy - the `sub` claim of the caller who triggered the send
+# + return - () or an error
+public function markUndanganStatus(int id, int proyekId, string status, string sentBy) returns error? {
+    postgresql:Client dbc = check dbClient();
+    _ = check dbc->execute(`
+        UPDATE team_member SET undangan_status = ${status}, undangan_sent_at = now(), undangan_sent_by = ${sentBy}
+        WHERE id = ${id} AND proyek_id = ${proyekId} AND is_deleted = false`);
+}
+
 # Soft-deletes a team member (sets is_deleted = true). Never physically deletes.
 #
 # + id - the team_member id

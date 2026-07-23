@@ -94,7 +94,7 @@ public function previewNomor(int? kategoriSuratId, string? tanggal) returns mode
 # + payload - the create request body (nomor/tahun/urutan are computed here, never taken from it)
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created letter detail, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createNomorSurat(models:NomorSuratCreateRequest payload, string subject)
+public function createNomorSurat(models:NomorSuratCreateRequest payload, string subject, string? ipAddress = ())
         returns models:NomorSurat|error {
     string tanggal = payload.tanggal.trim();
     check validateTanggal(tanggal);
@@ -131,7 +131,7 @@ public function createNomorSurat(models:NomorSuratCreateRequest payload, string 
     if created is () {
         return error("Nomor surat created (id " + inserted.toString() + ") but could not be read back");
     }
-    logAudit("nomor_surat", inserted.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("nomor_surat", inserted.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -143,7 +143,7 @@ public function createNomorSurat(models:NomorSuratCreateRequest payload, string 
 # + payload - the update request body (immutable fields, if sent, are ignored via the open record)
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated letter detail, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function updateNomorSurat(int id, models:NomorSuratUpdateRequest payload, string subject)
+public function updateNomorSurat(int id, models:NomorSuratUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:NomorSurat|error {
     string tanggal = payload.tanggal.trim();
     check validateTanggal(tanggal);
@@ -170,7 +170,7 @@ public function updateNomorSurat(int id, models:NomorSuratUpdateRequest payload,
     if updated is () {
         return utils:notFoundError("Surat dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("nomor_surat", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("nomor_surat", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -187,7 +187,7 @@ const int ALASAN_PEMBATALAN_MIN_LENGTH = 5;
 # + payload - the cancellation request body (alasanPembatalan is mandatory)
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the cancelled letter's id/nomor/alasanPembatalan, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function cancelNomorSurat(int id, models:CancelNomorSuratRequest payload, string subject)
+public function cancelNomorSurat(int id, models:CancelNomorSuratRequest payload, string subject, string? ipAddress = ())
         returns models:NomorSuratCancelled|error {
     string alasan = payload.alasanPembatalan.trim();
     if alasan.length() == 0 {
@@ -219,7 +219,7 @@ public function cancelNomorSurat(int id, models:CancelNomorSuratRequest payload,
     // rather than edited. Goes through the shared `logAudit` (audit_log_service) so the stored
     // `perubahan` keeps the same {old, new} shape as every other audited module.
     logAudit("nomor_surat", id.toString(), "DELETE", existing.toJson(),
-            {"isDibatalkan": true, "alasanPembatalan": alasan}, subject);
+            {"isDibatalkan": true, "alasanPembatalan": alasan}, subject, ipAddress);
 
     return {id: existing.id, nomor: existing.nomor, alasanPembatalan: alasan};
 }

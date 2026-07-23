@@ -24,7 +24,7 @@ public function getMyProfile(string subject) returns models:KaryawanDetail|error
 # + subject - the caller's `sub` claim
 # + payload - the update request body
 # + return - the updated profile, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateMyProfile(string subject, models:ProfilSayaUpdateRequest payload)
+public function updateMyProfile(string subject, models:ProfilSayaUpdateRequest payload, string? ipAddress = ())
         returns models:KaryawanDetail|error {
     models:KaryawanDetail existing = check requireKaryawanBySubject(subject);
 
@@ -53,7 +53,7 @@ public function updateMyProfile(string subject, models:ProfilSayaUpdateRequest p
     }
     // Audited against `karyawan` (the table actually written), not a separate "profil_saya" name —
     // this is the self-service door onto the same row the Karyawan master module edits.
-    logAudit("karyawan", existing.id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("karyawan", existing.id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 

@@ -221,6 +221,9 @@ public type AppError distinct error<record {|
 # + id - primary key
 # + namaUnit - unit name
 # + kodeUnit - unique unit code
+# + kodeNik - unique 2-letter legacy code embedded in karyawan NIK for this unit (e.g. "BL" for
+#   Billing System Solutions) — deliberately distinct from `kodeUnit` (e.g. "BILL"), see
+#   documentation/note/api/03-master-data.md#modul-karyawan for the NIK format this feeds
 # + parentUnitId - parent unit id, or () for a top-level unit
 # + tipeUnit - computed: STRUKTURAL if the unit has an active child, OPERASIONAL otherwise
 # + status - AKTIF / TIDAK_AKTIF
@@ -232,6 +235,7 @@ public type Unit record {|
     int id;
     string namaUnit;
     string kodeUnit;
+    string kodeNik;
     int? parentUnitId;
     string tipeUnit;
     string status;
@@ -243,15 +247,18 @@ public type Unit record {|
 
 # Request body for POST /api/v1/master/units. `status` defaults to "AKTIF" when omitted;
 # `parentUnitId` is optional/nullable (a top-level unit has no parent). `kodeUnit` is
-# required — `unit.kode_unit` is NOT NULL UNIQUE in the DB.
+# required — `unit.kode_unit` is NOT NULL UNIQUE in the DB. `kodeNik` is likewise required
+# and unique — see `Unit.kodeNik`.
 #
 # + namaUnit - unit name
 # + kodeUnit - unique unit code
+# + kodeNik - unique 2-letter legacy code embedded in karyawan NIK for this unit
 # + parentUnitId - optional parent unit id
 # + status - optional status, defaults to "AKTIF"
 public type UnitCreateRequest record {|
     string namaUnit;
     string kodeUnit;
+    string kodeNik;
     int? parentUnitId?;
     string status?;
 |};
@@ -260,11 +267,13 @@ public type UnitCreateRequest record {|
 #
 # + namaUnit - new unit name
 # + kodeUnit - new unique unit code
+# + kodeNik - new unique 2-letter legacy NIK code
 # + parentUnitId - new parent unit id, or () to clear it
 # + status - new status
 public type UnitUpdateRequest record {|
     string namaUnit;
     string kodeUnit;
+    string kodeNik;
     int? parentUnitId?;
     string status;
 |};
@@ -296,6 +305,20 @@ public type UnitTreeNode record {|
 public type UnitListResult record {|
     Unit[] items;
     Pagination pagination;
+|};
+
+# A unit option for the "eligible units" dropdown on the Create Proyek form —
+# GET /api/v1/business/proyek/units. Restricted to the fixed set of operational units that are
+# allowed to own a proyek (see `PROYEK_ELIGIBLE_UNIT_CODES` in proyek_service.bal) — excludes
+# structural/parent units and non-delivery units (Marketing & Sales, Human Capital, Finance).
+#
+# + id - unit id
+# + namaUnit - unit name
+# + kodeUnit - unit code
+public type UnitDropdownItem record {|
+    int id;
+    string namaUnit;
+    string kodeUnit;
 |};
 
 # ===== Master Data — Industri =====
@@ -575,6 +598,8 @@ public type JabatanMaster record {|
 # + nama - employee name
 # + jabatan - joined jabatan_master projection
 # + unitId - owning unit id
+# + tipeKaryawan - "P" (Pegawai Tetap) or "C" (Kontrak) — also encoded in `nik` for
+#   non-founder employees, see documentation/note/api/03-master-data.md#modul-karyawan
 # + email - employee email
 # + noHp - optional phone number
 # + tanggalMasuk - optional join date (YYYY-MM-DD)
@@ -585,6 +610,7 @@ public type KaryawanListItem record {|
     string nama;
     JabatanRef jabatan;
     int unitId;
+    string tipeKaryawan;
     string email;
     string? noHp;
     string? tanggalMasuk;
@@ -599,6 +625,7 @@ public type KaryawanListItem record {|
 # + nama - employee name
 # + jabatan - joined jabatan_master projection
 # + unitId - owning unit id
+# + tipeKaryawan - "P" (Pegawai Tetap) or "C" (Kontrak)
 # + email - employee email
 # + noHp - optional phone number
 # + tanggalMasuk - optional join date (YYYY-MM-DD)
@@ -614,6 +641,7 @@ public type KaryawanDetail record {|
     string nama;
     JabatanRef jabatan;
     int unitId;
+    string tipeKaryawan;
     string email;
     string? noHp;
     string? tanggalMasuk;
@@ -633,6 +661,7 @@ public type KaryawanDetail record {|
 # + nama - employee name
 # + jabatanId - jabatan_master id (FK)
 # + unitId - owning unit id
+# + tipeKaryawan - optional, "P" or "C", defaults to "P" (Pegawai Tetap)
 # + email - employee email
 # + noHp - optional phone number
 # + tanggalMasuk - optional join date (YYYY-MM-DD)
@@ -643,6 +672,7 @@ public type KaryawanCreateRequest record {|
     string nama;
     int jabatanId;
     int unitId;
+    string tipeKaryawan?;
     string email;
     string? noHp?;
     string? tanggalMasuk?;
@@ -657,6 +687,7 @@ public type KaryawanCreateRequest record {|
 # + nama - new employee name
 # + jabatanId - new jabatan_master id (FK)
 # + unitId - new owning unit id
+# + tipeKaryawan - optional, "P" or "C", defaults to "P" if omitted
 # + email - new employee email
 # + noHp - new phone number, or () to clear it
 # + tanggalMasuk - new join date, or () to clear it
@@ -667,6 +698,7 @@ public type KaryawanUpdateRequest record {|
     string nama;
     int jabatanId;
     int unitId;
+    string tipeKaryawan?;
     string email;
     string? noHp?;
     string? tanggalMasuk?;
@@ -693,6 +725,15 @@ public type KaryawanDropdownItem record {|
     int id;
     string nama;
     string unitNama;
+|};
+
+# Preview of the next NIK for the Tambah Karyawan form. Read-only, same non-reservation semantics
+# as NomorSuratPreview — nik stays a free-text field the caller can still override, this is only a
+# convenience suggestion (see karyawan_service:previewNik).
+#
+# + nikPreview - the previewed next NIK
+public type KaryawanNikPreview record {|
+    string nikPreview;
 |};
 
 # ===== Master Data — Customer =====
@@ -1343,6 +1384,52 @@ public type TeamMemberUpdateRequest record {
     decimal? bobot?;
     string? keterangan?;
 };
+
+# A team_member row eligible for an invitation email (`undangan_status` is BELUM_DIKIRIM or GAGAL),
+# joined to the karyawan's email/name and the role name — used only internally by
+# services:sendTeamMemberUndangan, never returned directly by an HTTP resource.
+#
+# + id - the team_member id
+# + karyawanId - the assigned karyawan
+# + karyawanNama - joined karyawan name
+# + karyawanEmail - joined karyawan email, `()` if the karyawan has none on file
+# + roleNama - joined project-role name
+public type TeamMemberUndanganTarget record {|
+    int id;
+    int karyawanId;
+    string karyawanNama;
+    string? karyawanEmail;
+    string roleNama;
+|};
+
+# One team_member's outcome from a POST .../team-member/undangan call.
+#
+# + id - the team_member id
+# + karyawanNama - the assigned karyawan's name
+# + status - TERKIRIM or GAGAL after this attempt
+# + errorMessage - failure detail (missing email, SMTP error, ...), `()` on success
+public type TeamMemberUndanganItem record {|
+    int id;
+    string karyawanNama;
+    string status;
+    string? errorMessage;
+|};
+
+# Response of POST /api/v1/business/proyek/{proyekId}/team-member/undangan. Every member whose
+# `undanganStatus` was BELUM_DIKIRIM or GAGAL is attempted; members already TERKIRIM are skipped
+# (not counted here) so re-clicking "Kirim Email Undangan Project" after adding one more member
+# doesn't re-email everyone else.
+#
+# + totalTargeted - how many members were attempted (BELUM_DIKIRIM/GAGAL at call time)
+# + totalSent - how many of those succeeded
+# + totalFailed - how many of those failed (bad/missing email, SMTP error, ...)
+# + items - per-member outcome
+public type TeamMemberUndanganResult record {|
+    int totalTargeted;
+    int totalSent;
+    int totalFailed;
+    TeamMemberUndanganItem[] items;
+|};
 
 # ===== Sales Unit — Proyek Tags (many-to-many proyek <-> tags) =====
 

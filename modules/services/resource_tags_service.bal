@@ -59,7 +59,7 @@ public function getResourceTagsById(int id) returns models:ResourceTags|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created resource tag, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createResourceTags(models:ResourceTagsCreateRequest payload, string subject)
+public function createResourceTags(models:ResourceTagsCreateRequest payload, string subject, string? ipAddress = ())
         returns models:ResourceTags|error {
     string kode = payload.kode.trim();
     check validateRtKode(kode);
@@ -82,7 +82,7 @@ public function createResourceTags(models:ResourceTagsCreateRequest payload, str
     }
 
     models:ResourceTags created = check repositories:insertResourceTags(kode, nama, unitId, deskripsi, status, subject);
-    logAudit("resource_tags", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("resource_tags", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -92,7 +92,7 @@ public function createResourceTags(models:ResourceTagsCreateRequest payload, str
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated resource tag, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateResourceTags(int id, models:ResourceTagsUpdateRequest payload, string subject)
+public function updateResourceTags(int id, models:ResourceTagsUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:ResourceTags|error {
     string kode = payload.kode.trim();
     check validateRtKode(kode);
@@ -122,7 +122,7 @@ public function updateResourceTags(int id, models:ResourceTagsUpdateRequest payl
     if updated is () {
         return utils:notFoundError("Resource Tag dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("resource_tags", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("resource_tags", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -131,7 +131,7 @@ public function updateResourceTags(int id, models:ResourceTagsUpdateRequest payl
 # + id - the resource tag id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteResourceTags(int id, string subject) returns error? {
+public function deleteResourceTags(int id, string subject, string? ipAddress = ()) returns error? {
     models:ResourceTags? existing = check repositories:findResourceTagsById(id);
     if existing is () {
         return utils:notFoundError("Resource Tag dengan id " + id.toString() + " tidak ditemukan");
@@ -146,7 +146,7 @@ public function deleteResourceTags(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Resource Tag dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("resource_tags", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("resource_tags", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

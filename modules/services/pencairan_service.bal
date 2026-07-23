@@ -29,7 +29,7 @@ public function getPencairan(int tagihanId) returns models:PencairanTagihan[]|er
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created pencairan, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function createPencairan(int tagihanId, models:PencairanCreateRequest payload, string subject)
+public function createPencairan(int tagihanId, models:PencairanCreateRequest payload, string subject, string? ipAddress = ())
         returns models:PencairanTagihan|error {
     models:Tagihan tagihan = check requireTagihan(tagihanId);
     string tanggalPencairan = check validateRequiredDate(payload.tanggalPencairan, "Tanggal pencairan");
@@ -39,7 +39,7 @@ public function createPencairan(int tagihanId, models:PencairanCreateRequest pay
 
     models:PencairanTagihan created = check repositories:insertPencairan(tagihanId, tanggalPencairan,
             payload.nilai, payload.status, keterangan, subject);
-    logAudit("pencairan_tagihan", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("pencairan_tagihan", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -50,7 +50,7 @@ public function createPencairan(int tagihanId, models:PencairanCreateRequest pay
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the updated pencairan, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function updatePencairan(int tagihanId, int id, models:PencairanUpdateRequest payload, string subject)
+public function updatePencairan(int tagihanId, int id, models:PencairanUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:PencairanTagihan|error {
     models:Tagihan tagihan = check requireTagihan(tagihanId);
     string tanggalPencairan = check validateRequiredDate(payload.tanggalPencairan, "Tanggal pencairan");
@@ -68,7 +68,7 @@ public function updatePencairan(int tagihanId, int id, models:PencairanUpdateReq
     if updated is () {
         return utils:notFoundError("Pencairan dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("pencairan_tagihan", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("pencairan_tagihan", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -78,7 +78,7 @@ public function updatePencairan(int tagihanId, int id, models:PencairanUpdateReq
 # + id - the pencairan id to delete
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND AppError, or an error
-public function deletePencairan(int tagihanId, int id, string subject) returns error? {
+public function deletePencairan(int tagihanId, int id, string subject, string? ipAddress = ()) returns error? {
     _ = check requireTagihan(tagihanId);
     // Read the row before deleting purely so the audit entry can record what was removed.
     models:PencairanTagihan? existing = check repositories:findPencairanById(id, tagihanId);
@@ -86,7 +86,7 @@ public function deletePencairan(int tagihanId, int id, string subject) returns e
     if !deleted {
         return utils:notFoundError("Pencairan dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("pencairan_tagihan", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject);
+    logAudit("pencairan_tagihan", id.toString(), "DELETE", existing is () ? () : existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

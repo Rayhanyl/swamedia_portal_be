@@ -35,3 +35,12 @@ redisPort = 6379
 # Set the real Super Admin credentials only in Config.docker.toml (gitignored), never here.
 scimAdminUsername = ""
 scimAdminPassword = ""
+
+# SMTP transport for outbound email (currently: Team Member "undangan" invitations). The on/off
+# switch and sender address are admin-editable via sys_config (notif_team_member_aktif /
+# notif_email_pengirim) — these are only the mail server credentials. See modules/config/config.bal.
+smtpHost = ""
+smtpPort = 587
+smtpUsername = ""
+smtpPassword = ""
+smtpSecurity = "START_TLS_AUTO"

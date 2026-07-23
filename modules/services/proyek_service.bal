@@ -29,6 +29,14 @@ const string PROYEK_STATUS_DEFAULT = "INFO_PELUANG";
 const int PROYEK_TAHUN_MIN = 2000;
 const int PROYEK_TAHUN_MAX = 2100;
 
+# The only units a proyek may be assigned to: Service Delivery, Strategic Enablement, Billing
+# System Solutions, Digital Ecosystem Solutions, Product Operational Support. Deliberately
+# excludes structural/parent units (e.g. Strategic Enterprise Solution, whose revenue is just the
+# combined total of its Service Delivery + Strategic Enablement children) and non-delivery units
+# (Marketing & Sales, Human Capital, Finance). Must be kept in sync with the `kode_unit IN (...)`
+# list in `repositories:findProyekEligibleUnits`.
+final string[] PROYEK_ELIGIBLE_UNIT_CODES = ["SD", "SE", "BILL", "DES", "POS"];
+
 # Lists non-deleted proyek with optional filters and pagination.
 #
 # + search - optional case-insensitive filter on kode_proyek or nama_proyek
@@ -96,7 +104,7 @@ public function getProyekLogStatus(int id) returns models:ProyekLogStatus[]|erro
 # + payload - the create request body (kodeProyek is computed here, never taken from it)
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created proyek detail, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createProyek(models:ProyekCreateRequest payload, string subject) returns models:Proyek|error {
+public function createProyek(models:ProyekCreateRequest payload, string subject, string? ipAddress = ()) returns models:Proyek|error {
     string namaProyek = payload.namaProyek.trim();
     check validateNamaProyek(namaProyek);
     string? departemen = check normalizeProyekField(payload?.departemen, 100, "Departemen");
@@ -131,6 +139,12 @@ public function createProyek(models:ProyekCreateRequest payload, string subject)
     models:Unit? unit = check repositories:findUnitById(payload.unitId);
     if unit is () {
         return utils:validationError("Unit tidak ditemukan");
+    }
+    if PROYEK_ELIGIBLE_UNIT_CODES.indexOf(unit.kodeUnit) is () {
+        return utils:validationError(
+                "Unit '" + unit.namaUnit + "' tidak berhak menerima proyek — pilih salah satu dari " +
+                "Service Delivery, Strategic Enablement, Billing System Solutions, Digital Ecosystem " +
+                "Solutions, atau Product Operational Support");
     }
     boolean picSalesOk = check repositories:karyawanExistsActive(payload.picSalesId);
     if !picSalesOk {
@@ -170,7 +184,7 @@ public function createProyek(models:ProyekCreateRequest payload, string subject)
     }
 
     models:Proyek created = check getProyekById(inserted);
-    logAudit("proyek", inserted.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("proyek", inserted.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -183,7 +197,7 @@ public function createProyek(models:ProyekCreateRequest payload, string subject)
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated proyek detail, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function updateProyek(int id, models:ProyekUpdateRequest payload, string subject)
+public function updateProyek(int id, models:ProyekUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:Proyek|error {
     string namaProyek = payload.namaProyek.trim();
     check validateNamaProyek(namaProyek);
@@ -249,7 +263,7 @@ public function updateProyek(int id, models:ProyekUpdateRequest payload, string 
     }
 
     models:Proyek result = check getProyekById(id);
-    logAudit("proyek", id.toString(), "UPDATE", existing.toJson(), result.toJson(), subject);
+    logAudit("proyek", id.toString(), "UPDATE", existing.toJson(), result.toJson(), subject, ipAddress);
     return result;
 }
 
@@ -258,7 +272,7 @@ public function updateProyek(int id, models:ProyekUpdateRequest payload, string 
 # + id - the proyek id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteProyek(int id, string subject) returns error? {
+public function deleteProyek(int id, string subject, string? ipAddress = ()) returns error? {
     models:Proyek? existing = check repositories:findProyekById(id);
     if existing is () {
         return utils:notFoundError("Proyek dengan id " + id.toString() + " tidak ditemukan");
@@ -268,7 +282,7 @@ public function deleteProyek(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Proyek dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("proyek", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("proyek", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 
@@ -278,6 +292,14 @@ public function deleteProyek(int id, string subject) returns error? {
 # + return - the dropdown options (max 100), or an error
 public function getProyekDropdown(string? search) returns models:ProyekDropdownItem[]|error {
     return repositories:getProyekDropdown(search);
+}
+
+# Returns the fixed set of units eligible to own a proyek, for the Create Proyek form's Unit
+# dropdown (see `PROYEK_ELIGIBLE_UNIT_CODES`).
+#
+# + return - the eligible units (ordered by nama_unit), or an error
+public function getProyekEligibleUnits() returns models:UnitDropdownItem[]|error {
+    return repositories:findProyekEligibleUnits();
 }
 
 # Validates nama_proyek: required, maximum 200 characters (after trimming).

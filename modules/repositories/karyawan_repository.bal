@@ -36,6 +36,7 @@ type KaryawanListRow record {|
     string namaJabatan;
     string kategori;
     int unitId;
+    string tipeKaryawan;
     string email;
     string? noHp;
     string? tanggalMasuk;
@@ -69,6 +70,7 @@ type KaryawanDetailRow record {|
     string namaJabatan;
     string kategori;
     int unitId;
+    string tipeKaryawan;
     string email;
     string? noHp;
     string? tanggalMasuk;
@@ -108,7 +110,7 @@ public function findKaryawan(string? search, int? unitId, string? status, int 'l
     sql:ParameterizedQuery[] selectParts = [
         `SELECT k.id, k.nik, k.nama, k.jabatan_id AS "jabatanId",
                 jm.nama_jabatan AS "namaJabatan", jm.kategori AS "kategori",
-                k.unit_id AS "unitId", k.email, k.no_hp AS "noHp",
+                k.unit_id AS "unitId", k.tipe_karyawan AS "tipeKaryawan", k.email, k.no_hp AS "noHp",
                 k.tanggal_masuk::text AS "tanggalMasuk", k.status
          FROM karyawan k
          JOIN jabatan_master jm ON jm.id = k.jabatan_id
@@ -128,6 +130,7 @@ public function findKaryawan(string? search, int? unitId, string? status, int 'l
             nama: r.nama,
             jabatan: {id: r.jabatanId, namaJabatan: r.namaJabatan, kategori: r.kategori},
             unitId: r.unitId,
+            tipeKaryawan: r.tipeKaryawan,
             email: r.email,
             noHp: r.noHp,
             tanggalMasuk: r.tanggalMasuk,
@@ -153,7 +156,7 @@ public function findKaryawanById(int id) returns models:KaryawanDetail?|error {
     KaryawanDetailRow|sql:Error result = dbc->queryRow(`
         SELECT k.id, k.nik, k.nama, k.jabatan_id AS "jabatanId",
                jm.nama_jabatan AS "namaJabatan", jm.kategori AS "kategori",
-               k.unit_id AS "unitId", k.email, k.no_hp AS "noHp",
+               k.unit_id AS "unitId", k.tipe_karyawan AS "tipeKaryawan", k.email, k.no_hp AS "noHp",
                k.tanggal_masuk::text AS "tanggalMasuk", k.status, k.subject_id AS "subjectId",
                k.created_at::text AS "createdAt", k.updated_at::text AS "updatedAt",
                k.created_by AS "createdBy", k.updated_by AS "updatedBy"
@@ -180,7 +183,7 @@ public function findKaryawanBySubjectId(string subjectId) returns models:Karyawa
     KaryawanDetailRow|sql:Error result = dbc->queryRow(`
         SELECT k.id, k.nik, k.nama, k.jabatan_id AS "jabatanId",
                jm.nama_jabatan AS "namaJabatan", jm.kategori AS "kategori",
-               k.unit_id AS "unitId", k.email, k.no_hp AS "noHp",
+               k.unit_id AS "unitId", k.tipe_karyawan AS "tipeKaryawan", k.email, k.no_hp AS "noHp",
                k.tanggal_masuk::text AS "tanggalMasuk", k.status, k.subject_id AS "subjectId",
                k.created_at::text AS "createdAt", k.updated_at::text AS "updatedAt",
                k.created_by AS "createdBy", k.updated_by AS "updatedBy"
@@ -207,6 +210,7 @@ function toKaryawanDetail(KaryawanDetailRow r) returns models:KaryawanDetail => 
     nama: r.nama,
     jabatan: {id: r.jabatanId, namaJabatan: r.namaJabatan, kategori: r.kategori},
     unitId: r.unitId,
+    tipeKaryawan: r.tipeKaryawan,
     email: r.email,
     noHp: r.noHp,
     tanggalMasuk: r.tanggalMasuk,
@@ -240,6 +244,85 @@ public function nikExists(string nik, int excludeId) returns boolean|error {
         SELECT count(*) FROM karyawan
         WHERE nik = ${nik} AND is_deleted = false AND id <> ${excludeId}`);
     return count > 0;
+}
+
+# Reads the NIK prefix from sys_config (key = 'prefix_nik'). Mirrors
+# nomor_surat_repository:getPrefixNomorSurat / proyek_repository:getPrefixKodeProyek.
+#
+# + return - the configured prefix, or `()` when the row is missing or its value is NULL, or an error
+public function getPrefixNik() returns string?|error {
+    postgresql:Client dbc = check dbClient();
+    record {|string? value;|}|sql:Error row =
+        dbc->queryRow(`SELECT value FROM sys_config WHERE key = 'prefix_nik'`);
+    if row is sql:NoRowsError {
+        return ();
+    }
+    if row is sql:Error {
+        return row;
+    }
+    return row.value;
+}
+
+# Read-only next urutan for (prefix, tahunMasuk2Digit) — MAX(urutan)+1 parsed back out of every
+# existing standard-format `nik` value for that 2-digit tahun masuk (across ALL rows, including
+# soft-deleted, so a historic number is never suggested again even after a karyawan is deleted).
+# The numbering is GLOBAL across the whole company for that year — NOT scoped per unit or per
+# tipe_karyawan (verified against karyawan_seed.sql: e.g. year "17" mixes P and C rows, and
+# multiple units, inside one shared ascending sequence 197/199/208/211/222).
+#
+# Founder/original-management NIKs (`SWA-00001OCO` .. `SWA-00008OMS`) use a completely different,
+# frozen, non-year-based numbering ("O" marker, no P/C letter) — see the module-level format note
+# in karyawan_service.bal. They never match this pattern, so they are naturally excluded here;
+# this function must NEVER be used to suggest a new founder-format NIK.
+#
+# PREVIEW only: no lock is taken and nothing is reserved, unlike `nomor_surat`/`kode_proyek` there
+# is no atomic generate+insert counterpart here — nik stays a free-text field the caller can still
+# override, and the existing `nikExists` uniqueness check on create/update remains the actual
+# safety net.
+#
+# + prefix - the sys_config prefix (e.g. "SWA")
+# + tahunMasuk2Digit - the 2-digit tahun masuk, e.g. "22" for 2022 (see `pad2Digit`)
+# + return - the next urutan (1 when no rows exist yet), or an error
+public function getNextNikUrutan(string prefix, string tahunMasuk2Digit) returns int|error {
+    postgresql:Client dbc = check dbClient();
+    string likePattern = prefix + "-" + tahunMasuk2Digit + "%";
+    // Anchored on the tahun-masuk digits only (not the admin-configurable prefix) — the LIKE
+    // clause above already scopes which rows are considered, so the prefix itself never needs to
+    // appear inside the regex.
+    string pattern = "-" + tahunMasuk2Digit + "([0-9]{3})[PC][A-Z]{2}$";
+    int next = check dbc->queryRow(`
+        SELECT COALESCE(MAX((regexp_match(nik, ${pattern}))[1]::int), 0) + 1
+        FROM karyawan
+        WHERE nik LIKE ${likePattern}`);
+    return next;
+}
+
+# Builds the canonical standard-format NIK string from its parts:
+# `{prefix}-{tahunMasuk2Digit}{urutan, zero-padded to 3 digits}{tipeKaryawan}{kodeNik}`
+# (e.g. "SWA-22309CSD"). Single source of truth for the format. Reuses `padUrutan` from
+# `nomor_surat_repository.bal` — both files live in the `repositories` module, so a module-private
+# function defined in one is already visible in the other. NEVER used for the founder/original-
+# management format (`SWA-00001OCO` style) — those are frozen historical values, never generated.
+#
+# + prefix - the sys_config prefix (e.g. "SWA")
+# + tahunMasuk2Digit - the 2-digit tahun masuk, e.g. "22" for 2022
+# + urutan - the sequence number within (prefix, tahunMasuk2Digit), global company-wide
+# + tipeKaryawan - "P" (Pegawai Tetap) or "C" (Kontrak)
+# + kodeNik - the unit's 2-letter legacy NIK code (`unit.kode_nik`)
+# + return - e.g. "SWA-22309CSD"
+public isolated function formatNik(string prefix, string tahunMasuk2Digit, int urutan, string tipeKaryawan,
+        string kodeNik) returns string {
+    return string `${prefix}-${tahunMasuk2Digit}${padUrutan(urutan)}${tipeKaryawan}${kodeNik}`;
+}
+
+# Left-pads a 4-digit year down to its 2 trailing digits (2022 -> "22", 2007 -> "07").
+#
+# + tahun - a 4-digit calendar year
+# + return - the 2-digit string
+public isolated function pad2Digit(int tahun) returns string {
+    int last2 = tahun % 100;
+    string s = last2.toString();
+    return s.length() < 2 ? "0" + s : s;
 }
 
 # Returns whether another non-deleted karyawan already uses the given email (case-insensitive).
@@ -324,6 +407,7 @@ public function isReferencedByResourceUnit(int id) returns boolean|error {
 # + nama - full name
 # + jabatanId - jabatan_master id (FK, NOT NULL)
 # + unitId - owning unit id
+# + tipeKaryawan - "P" (Pegawai Tetap) or "C" (Kontrak)
 # + email - lowercased email
 # + noHp - phone number, or ()
 # + tanggalMasuk - join date as an ISO string (YYYY-MM-DD), or ()
@@ -331,13 +415,14 @@ public function isReferencedByResourceUnit(int id) returns boolean|error {
 # + subjectId - linked WSO2 IS subject, or () for no portal account
 # + createdBy - the `sub` claim of the caller
 # + return - the new karyawan id, or an error
-public function insertKaryawan(string nik, string nama, int jabatanId, int unitId, string email,
-        string? noHp, string? tanggalMasuk, string status, string? subjectId, string createdBy)
+public function insertKaryawan(string nik, string nama, int jabatanId, int unitId, string tipeKaryawan,
+        string email, string? noHp, string? tanggalMasuk, string status, string? subjectId, string createdBy)
         returns int|error {
     postgresql:Client dbc = check dbClient();
     int newId = check dbc->queryRow(`
-        INSERT INTO karyawan (nik, nama, jabatan_id, unit_id, email, no_hp, tanggal_masuk, status, subject_id, created_by)
-        VALUES (${nik}, ${nama}, ${jabatanId}, ${unitId}, ${email}, ${noHp}, ${tanggalMasuk}::date,
+        INSERT INTO karyawan (nik, nama, jabatan_id, unit_id, tipe_karyawan, email, no_hp, tanggal_masuk,
+                status, subject_id, created_by)
+        VALUES (${nik}, ${nama}, ${jabatanId}, ${unitId}, ${tipeKaryawan}, ${email}, ${noHp}, ${tanggalMasuk}::date,
                 ${status}, ${subjectId}, ${createdBy})
         RETURNING id`);
     return newId;
@@ -351,6 +436,7 @@ public function insertKaryawan(string nik, string nama, int jabatanId, int unitI
 # + nama - new name
 # + jabatanId - new jabatan_master id (FK, NOT NULL)
 # + unitId - new owning unit id
+# + tipeKaryawan - new "P"/"C"
 # + email - new lowercased email
 # + noHp - new phone number, or ()
 # + tanggalMasuk - new join date (YYYY-MM-DD), or ()
@@ -358,13 +444,14 @@ public function insertKaryawan(string nik, string nama, int jabatanId, int unitI
 # + subjectId - new linked subject, or () to unlink
 # + updatedBy - the `sub` claim of the caller
 # + return - the karyawan id, `()` if the row does not exist (or is deleted), or an error
-public function updateKaryawan(int id, string nik, string nama, int jabatanId, int unitId, string email,
-        string? noHp, string? tanggalMasuk, string status, string? subjectId, string updatedBy)
+public function updateKaryawan(int id, string nik, string nama, int jabatanId, int unitId, string tipeKaryawan,
+        string email, string? noHp, string? tanggalMasuk, string status, string? subjectId, string updatedBy)
         returns int?|error {
     postgresql:Client dbc = check dbClient();
     int|sql:Error updated = dbc->queryRow(`
         UPDATE karyawan SET nik = ${nik}, nama = ${nama}, jabatan_id = ${jabatanId}, unit_id = ${unitId},
-               email = ${email}, no_hp = ${noHp}, tanggal_masuk = ${tanggalMasuk}::date,
+               tipe_karyawan = ${tipeKaryawan}, email = ${email}, no_hp = ${noHp},
+               tanggal_masuk = ${tanggalMasuk}::date,
                status = ${status}, subject_id = ${subjectId}, updated_by = ${updatedBy}, updated_at = now()
         WHERE id = ${id} AND is_deleted = false
         RETURNING id`, int);

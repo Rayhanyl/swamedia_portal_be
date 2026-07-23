@@ -64,7 +64,7 @@ public function getCustomerById(int id) returns models:CustomerDetail|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created customer detail, a VALIDATION_ERROR AppError, or an error
-public function createCustomer(models:CustomerCreateRequest payload, string subject)
+public function createCustomer(models:CustomerCreateRequest payload, string subject, string? ipAddress = ())
         returns models:CustomerDetail|error {
     string nama = payload.nama.trim();
     check validateCustomerNama(nama);
@@ -90,7 +90,7 @@ public function createCustomer(models:CustomerCreateRequest payload, string subj
     if created is () {
         return error("Customer created (id " + newId.toString() + ") but could not be read back");
     }
-    logAudit("customer", newId.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("customer", newId.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -100,7 +100,7 @@ public function createCustomer(models:CustomerCreateRequest payload, string subj
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated customer detail, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function updateCustomer(int id, models:CustomerUpdateRequest payload, string subject)
+public function updateCustomer(int id, models:CustomerUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:CustomerDetail|error {
     string nama = payload.nama.trim();
     check validateCustomerNama(nama);
@@ -134,7 +134,7 @@ public function updateCustomer(int id, models:CustomerUpdateRequest payload, str
     if updated is () {
         return utils:notFoundError("Customer dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("customer", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("customer", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -143,7 +143,7 @@ public function updateCustomer(int id, models:CustomerUpdateRequest payload, str
 # + id - the customer id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteCustomer(int id, string subject) returns error? {
+public function deleteCustomer(int id, string subject, string? ipAddress = ()) returns error? {
     models:CustomerDetail? existing = check repositories:findCustomerById(id);
     if existing is () {
         return utils:notFoundError("Customer dengan id " + id.toString() + " tidak ditemukan");
@@ -158,7 +158,7 @@ public function deleteCustomer(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Customer dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("customer", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("customer", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

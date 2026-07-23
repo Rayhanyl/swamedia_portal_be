@@ -35,7 +35,7 @@ public function getMyAccount(string subject) returns models:AkunProfile|error {
 # + subject - the caller's `sub` claim (their own WSO2 IS subject id)
 # + payload - the update request body
 # + return - the updated identity snapshot, a VALIDATION_ERROR AppError, or an error
-public function updateMyAccount(string subject, models:AkunSayaUpdateRequest payload)
+public function updateMyAccount(string subject, models:AkunSayaUpdateRequest payload, string? ipAddress = ())
         returns models:AkunProfile|error {
     // Self-service never sets role/group — see AkunSayaUpdateRequest. Password is changed via the
     // separate updateMyPassword path, not here.
@@ -47,7 +47,7 @@ public function updateMyAccount(string subject, models:AkunSayaUpdateRequest pay
         organization: payload?.organization,
         country: payload?.country
     };
-    return applyAccountUpdate(subject, input, subject);
+    return applyAccountUpdate(subject, input, subject, ipAddress);
 }
 
 # Changes the caller's OWN WSO2 IS password. `subject` is always the caller's own `sub` claim
@@ -56,8 +56,9 @@ public function updateMyAccount(string subject, models:AkunSayaUpdateRequest pay
 # + subject - the caller's `sub` claim (their own WSO2 IS subject id)
 # + payload - the new-password request body
 # + return - a VALIDATION_ERROR AppError, or an error
-public function updateMyPassword(string subject, models:PasswordUpdateRequest payload) returns error? {
-    return applyPasswordUpdate(subject, payload.password, subject);
+public function updateMyPassword(string subject, models:PasswordUpdateRequest payload, string? ipAddress = ())
+        returns error? {
+    return applyPasswordUpdate(subject, payload.password, subject, ipAddress);
 }
 
 # Shared password-change implementation for both the self-service (Akun Saya) and admin (Manajemen
@@ -69,14 +70,14 @@ public function updateMyPassword(string subject, models:PasswordUpdateRequest pa
 # + password - the new password
 # + aktor - the caller's own `sub` claim, stored as the audit_log `aktor`
 # + return - a VALIDATION_ERROR AppError, or an error
-function applyPasswordUpdate(string subjectId, string password, string aktor) returns error? {
+function applyPasswordUpdate(string subjectId, string password, string aktor, string? ipAddress = ()) returns error? {
     if password.length() < 6 {
         return utils:validationError("Password minimal 6 karakter");
     }
     json[] operations = [replaceOp("password", password)];
     _ = check repositories:scimAdminPatch(subjectId, operations);
     // Never log the password itself — only that a reset happened.
-    logAudit("user", subjectId, "UPDATE", (), {"action": "password_reset"}, aktor);
+    logAudit("user", subjectId, "UPDATE", (), {"action": "password_reset"}, aktor, ipAddress);
 }
 
 # The SCIM2 enterprise-User extension schema URN (organization lives here).
@@ -123,7 +124,7 @@ type AccountUpdateInput record {|
 # + input - the normalized set of fields to apply (only non-() fields are sent)
 # + aktor - the caller's own `sub` claim, stored as the audit_log `aktor`
 # + return - the updated identity snapshot, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-function applyAccountUpdate(string subjectId, AccountUpdateInput input, string aktor) returns models:AkunProfile|error {
+function applyAccountUpdate(string subjectId, AccountUpdateInput input, string aktor, string? ipAddress = ()) returns models:AkunProfile|error {
     json[] operations = [];
     string[] extraSchemas = [];
     boolean usedWso2 = false;
@@ -235,7 +236,7 @@ function applyAccountUpdate(string subjectId, AccountUpdateInput input, string a
 
     // No cheap "before" snapshot here — fetching it would mean an extra WSO2 IS round trip on
     // every account update, so `old` is left () and this entry only records the resulting state.
-    logAudit("user", subjectId, "UPDATE", (), profile.toJson(), aktor);
+    logAudit("user", subjectId, "UPDATE", (), profile.toJson(), aktor, ipAddress);
     return profile;
 }
 

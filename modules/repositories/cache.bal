@@ -1,3 +1,4 @@
+import ballerina/time;
 import ballerinax/redis;
 import rayha/swamedia_portal_be.config;
 
@@ -5,22 +6,47 @@ import rayha/swamedia_portal_be.config;
 # expensive-lookup caching, etc). Kept intentionally generic — JSON in, JSON out — so any
 # module can start using it without designing a new client per feature.
 
-isolated redis:Client? cachedClient = ();
+// Bundled into one record so the `lock` below only ever touches a single isolated variable
+// (Ballerina rejects a lock body that accesses two separate lock-restricted globals).
+type RedisClientState record {|
+    redis:Client? 'client = ();
+    int lastFailureEpochSeconds = 0;
+|};
+
+isolated RedisClientState redisState = {};
+
+# How long to wait after a failed connection attempt before trying again. Without this, every
+# cache call made while Redis is down (e.g. every permission check, every login) triggers its
+# own `new redis:Client(...)` — each failed attempt spins up its own Lettuce timer/event-loop
+# threads that are never cleaned up (the connector has no handle to close on a failed connect).
+# Under real request volume that leaks hundreds of threads within minutes and starves the whole
+# JVM, so *every* HTTP request — including ones that never touch Redis — starts timing out.
+# Seen in practice: an idle dev backend with Redis down accumulated 350+ threads and every route,
+# even an unauthenticated ping, started failing with "Idle timeout triggered before initiating
+# outbound response". Capping retries to once per cooldown window bounds the damage to one
+# doomed client per window instead of one per request.
+const int REDIS_RECONNECT_COOLDOWN_SECONDS = 30;
 
 # Lazily creates (once) and returns the shared Redis client. Deliberately lazy — a
 # module-level `check new(...)` would connect eagerly and break `bal build`/`bal test`
 # for anyone without Redis running locally. The connection is only attempted the first
-# time a cache function is actually called.
+# time a cache function is actually called, and at most once per
+# `REDIS_RECONNECT_COOLDOWN_SECONDS` while it keeps failing (see rationale above).
 #
 # + return - the shared client, or an error if the connection could not be established
 isolated function redisClient() returns redis:Client|error {
     lock {
-        redis:Client? existing = cachedClient;
+        redis:Client? existing = redisState.'client;
         if existing is redis:Client {
             return existing;
         }
 
-        redis:Client newClient = check new ({
+        int nowEpochSeconds = time:utcNow()[0];
+        if nowEpochSeconds - redisState.lastFailureEpochSeconds < REDIS_RECONNECT_COOLDOWN_SECONDS {
+            return error("Redis unavailable (last connection attempt failed recently, cooling down)");
+        }
+
+        redis:Client|error newClient = new ({
             connection: {
                 host: config:redisHost,
                 port: config:redisPort,
@@ -31,7 +57,11 @@ isolated function redisClient() returns redis:Client|error {
                 }
             }
         });
-        cachedClient = newClient;
+        if newClient is error {
+            redisState.lastFailureEpochSeconds = nowEpochSeconds;
+            return newClient;
+        }
+        redisState.'client = newClient;
         return newClient;
     }
 }

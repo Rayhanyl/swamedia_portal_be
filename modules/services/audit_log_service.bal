@@ -28,14 +28,40 @@ final string[] AUDIT_LOG_VALID_AKSI = ["CREATE", "UPDATE", "DELETE"];
 # + aksi - "CREATE" / "UPDATE" / "DELETE"
 # + oldData - the record's state before the change, or () for CREATE
 # + newData - the record's state after the change, or () for DELETE
-# + aktor - the caller's `sub` claim (never from the request body)
-function logAudit(string tableName, string recordId, string aksi, json? oldData, json? newData, string aktor) {
+# + aktor - the caller's `sub` claim (never from the request body) — resolved to a human-readable
+#   label (see `resolveAktorLabel`) before being written
+# + ipAddress - the caller's IP, resolved by the main.bal resource function from
+#   `X-Forwarded-For`/`X-Real-IP` (via `utils:resolveClientIp`) and threaded down alongside
+#   `subject` — () if neither header was present, or the caller hasn't been updated to pass it yet
+function logAudit(string tableName, string recordId, string aksi, json? oldData, json? newData, string aktor,
+        string? ipAddress = ()) {
     json perubahan = {"old": oldData, "new": newData};
-    error? auditErr = repositories:insertAuditLog(tableName, recordId, aksi, perubahan, aktor);
+    string aktorLabel = resolveAktorLabel(aktor);
+    error? auditErr = repositories:insertAuditLog(tableName, recordId, aksi, perubahan, aktorLabel, ipAddress);
     if auditErr is error {
         log:printError("Failed to write audit_log for " + tableName + " " + aksi + " (id=" + recordId + ")",
                 auditErr);
     }
+}
+
+# Resolves a `sub` claim (WSO2 IS subject UUID) to a human-readable label for `audit_log.aktor`.
+# There is no real SCIM `userName` cached locally (only `nama`/`email` sync at login into
+# `user_cache` — see `user_cache_service.bal`'s doc), and fetching it live from WSO2 IS on every
+# single audited write was rejected as too expensive, so `email` is the closest cheap, already-synced
+# stand-in. Falls back to the raw `sub` if the user isn't cached yet or has no email on file — this
+# must never fail the caller's actual (already-committed) change, so lookup errors are swallowed too.
+#
+# + subjectId - the `sub` claim to resolve
+# + return - the user's email, or `subjectId` itself if unresolvable
+function resolveAktorLabel(string subjectId) returns string {
+    models:UserCacheItem?|error item = repositories:findUserCacheBySubjectId(subjectId);
+    if item is models:UserCacheItem {
+        string? email = item.email;
+        if email is string && email.trim().length() > 0 {
+            return email;
+        }
+    }
+    return subjectId;
 }
 
 # Lists audit_log entries with optional filters and pagination, newest first.

@@ -57,7 +57,7 @@ public function getKategoriFinansialKeluarById(int id) returns models:KategoriFi
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created kategori, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createKategoriFinansialKeluar(models:KategoriFinansialKeluarCreateRequest payload, string subject)
+public function createKategoriFinansialKeluar(models:KategoriFinansialKeluarCreateRequest payload, string subject, string? ipAddress = ())
         returns models:KategoriFinansialKeluar|error {
     string kode = payload.kode.trim();
     string nama = payload.nama.trim();
@@ -73,7 +73,7 @@ public function createKategoriFinansialKeluar(models:KategoriFinansialKeluarCrea
     }
 
     models:KategoriFinansialKeluar created = check repositories:insertKategoriFinansialKeluar(kode, nama, status, subject);
-    logAudit("kategori_finansial_keluar", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("kategori_finansial_keluar", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -85,7 +85,7 @@ public function createKategoriFinansialKeluar(models:KategoriFinansialKeluarCrea
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - the updated kategori, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
 public function updateKategoriFinansialKeluar(int id, models:KategoriFinansialKeluarUpdateRequest payload,
-        string subject) returns models:KategoriFinansialKeluar|error {
+        string subject, string? ipAddress = ()) returns models:KategoriFinansialKeluar|error {
     string kode = payload.kode.trim();
     string nama = payload.nama.trim();
     check validateKategoriFinansialFields(kode, nama);
@@ -107,7 +107,7 @@ public function updateKategoriFinansialKeluar(int id, models:KategoriFinansialKe
     if updated is () {
         return utils:notFoundError("Kategori finansial keluar dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("kategori_finansial_keluar", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("kategori_finansial_keluar", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -117,7 +117,7 @@ public function updateKategoriFinansialKeluar(int id, models:KategoriFinansialKe
 # + id - the kategori_finansial_keluar id to delete
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteKategoriFinansialKeluar(int id, string subject) returns error? {
+public function deleteKategoriFinansialKeluar(int id, string subject, string? ipAddress = ()) returns error? {
     models:KategoriFinansialKeluar? existing = check repositories:findKategoriFinansialKeluarById(id);
     if existing is () {
         return utils:notFoundError("Kategori finansial keluar dengan id " + id.toString() + " tidak ditemukan");
@@ -130,7 +130,7 @@ public function deleteKategoriFinansialKeluar(int id, string subject) returns er
     if !deleted {
         return utils:notFoundError("Kategori finansial keluar dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("kategori_finansial_keluar", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("kategori_finansial_keluar", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

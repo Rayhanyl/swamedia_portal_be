@@ -61,7 +61,7 @@ public function getKategoriSuratById(int id) returns models:KategoriSurat|error 
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created kategori surat, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createKategoriSurat(models:KategoriSuratCreateRequest payload, string subject)
+public function createKategoriSurat(models:KategoriSuratCreateRequest payload, string subject, string? ipAddress = ())
         returns models:KategoriSurat|error {
     string kode = payload.kode.trim();
     check validateKsKode(kode);
@@ -77,7 +77,7 @@ public function createKategoriSurat(models:KategoriSuratCreateRequest payload, s
     check ensureNamaAvailable(nama, 0);
 
     models:KategoriSurat created = check repositories:insertKategoriSurat(kode, nama, status, subject);
-    logAudit("kategori_surat", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("kategori_surat", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -88,7 +88,7 @@ public function createKategoriSurat(models:KategoriSuratCreateRequest payload, s
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated kategori surat, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateKategoriSurat(int id, models:KategoriSuratUpdateRequest payload, string subject)
+public function updateKategoriSurat(int id, models:KategoriSuratUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:KategoriSurat|error {
     string kode = payload.kode.trim();
     check validateKsKode(kode);
@@ -111,7 +111,7 @@ public function updateKategoriSurat(int id, models:KategoriSuratUpdateRequest pa
     if updated is () {
         return utils:notFoundError("Kategori surat dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("kategori_surat", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("kategori_surat", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -123,7 +123,7 @@ public function updateKategoriSurat(int id, models:KategoriSuratUpdateRequest pa
 # + id - the kategori surat id to delete
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteKategoriSurat(int id, string subject) returns error? {
+public function deleteKategoriSurat(int id, string subject, string? ipAddress = ()) returns error? {
     models:KategoriSurat? existing = check repositories:findKategoriSuratById(id);
     if existing is () {
         return utils:notFoundError("Kategori surat dengan id " + id.toString() + " tidak ditemukan");
@@ -144,7 +144,7 @@ public function deleteKategoriSurat(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Kategori surat dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("kategori_surat", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("kategori_surat", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

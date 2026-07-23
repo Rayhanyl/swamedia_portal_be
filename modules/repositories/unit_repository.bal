@@ -34,7 +34,8 @@ public function findUnits(string? search, string? status, int? parentId, int 'li
     }
 
     sql:ParameterizedQuery[] selectParts = [
-        `SELECT u.id, u.nama_unit AS "namaUnit", u.kode_unit AS "kodeUnit", u.parent_unit_id AS "parentUnitId",
+        `SELECT u.id, u.nama_unit AS "namaUnit", u.kode_unit AS "kodeUnit", u.kode_nik AS "kodeNik",
+                u.parent_unit_id AS "parentUnitId",
                 CASE WHEN EXISTS (SELECT 1 FROM unit c WHERE c.parent_unit_id = u.id AND c.is_deleted = false)
                      THEN 'STRUKTURAL' ELSE 'OPERASIONAL' END AS "tipeUnit",
                 u.status
@@ -66,7 +67,8 @@ public function findUnits(string? search, string? status, int? parentId, int 'li
 public function findUnitById(int id) returns models:Unit?|error {
     postgresql:Client dbc = check dbClient();
     models:Unit|sql:Error result = dbc->queryRow(`
-        SELECT u.id, u.nama_unit AS "namaUnit", u.kode_unit AS "kodeUnit", u.parent_unit_id AS "parentUnitId",
+        SELECT u.id, u.nama_unit AS "namaUnit", u.kode_unit AS "kodeUnit", u.kode_nik AS "kodeNik",
+               u.parent_unit_id AS "parentUnitId",
                CASE WHEN EXISTS (SELECT 1 FROM unit c WHERE c.parent_unit_id = u.id AND c.is_deleted = false)
                     THEN 'STRUKTURAL' ELSE 'OPERASIONAL' END AS "tipeUnit",
                u.status, u.created_at::text AS "createdAt", u.updated_at::text AS "updatedAt",
@@ -85,7 +87,8 @@ public function findUnitById(int id) returns models:Unit?|error {
 public function findAllActiveUnits() returns models:Unit[]|error {
     postgresql:Client dbc = check dbClient();
     return from models:Unit u in dbc->query(`
-            SELECT u.id, u.nama_unit AS "namaUnit", u.kode_unit AS "kodeUnit", u.parent_unit_id AS "parentUnitId",
+            SELECT u.id, u.nama_unit AS "namaUnit", u.kode_unit AS "kodeUnit", u.kode_nik AS "kodeNik",
+                   u.parent_unit_id AS "parentUnitId",
                    CASE WHEN EXISTS (SELECT 1 FROM unit c WHERE c.parent_unit_id = u.id AND c.is_deleted = false)
                         THEN 'STRUKTURAL' ELSE 'OPERASIONAL' END AS "tipeUnit",
                    u.status
@@ -132,6 +135,20 @@ public function kodeUnitExists(string kodeUnit, int excludeId) returns boolean|e
     return count > 0;
 }
 
+# Returns whether another non-deleted unit already uses the given kode_nik (NOT NULL UNIQUE
+# in the DB) — mirrors `kodeUnitExists`.
+#
+# + kodeNik - the code to check
+# + excludeId - a unit id to exclude from the check (0 = none)
+# + return - true if a conflicting kode_nik exists, or an error
+public function kodeNikExists(string kodeNik, int excludeId) returns boolean|error {
+    postgresql:Client dbc = check dbClient();
+    int count = check dbc->queryRow(`
+        SELECT count(*) FROM unit
+        WHERE kode_nik = ${kodeNik} AND is_deleted = false AND id <> ${excludeId}`);
+    return count > 0;
+}
+
 # Returns whether the given unit still has any non-deleted child unit (blocks soft-delete).
 #
 # + id - the parent unit id
@@ -147,17 +164,19 @@ public function hasActiveChildren(int id) returns boolean|error {
 #
 # + namaUnit - unit name
 # + kodeUnit - unique unit code (NOT NULL UNIQUE in the DB)
+# + kodeNik - unique 2-letter legacy NIK code (NOT NULL UNIQUE in the DB)
 # + parentUnitId - parent unit id, or () for a top-level unit
 # + status - AKTIF / TIDAK_AKTIF
 # + createdBy - the `sub` claim of the caller
 # + return - the created unit, or an error
-public function insertUnit(string namaUnit, string kodeUnit, int? parentUnitId, string status, string createdBy)
-        returns models:Unit|error {
+public function insertUnit(string namaUnit, string kodeUnit, string kodeNik, int? parentUnitId, string status,
+        string createdBy) returns models:Unit|error {
     postgresql:Client dbc = check dbClient();
     models:Unit created = check dbc->queryRow(`
-        INSERT INTO unit (nama_unit, kode_unit, parent_unit_id, status, created_by)
-        VALUES (${namaUnit}, ${kodeUnit}, ${parentUnitId}, ${status}, ${createdBy})
-        RETURNING id, nama_unit AS "namaUnit", kode_unit AS "kodeUnit", parent_unit_id AS "parentUnitId",
+        INSERT INTO unit (nama_unit, kode_unit, kode_nik, parent_unit_id, status, created_by)
+        VALUES (${namaUnit}, ${kodeUnit}, ${kodeNik}, ${parentUnitId}, ${status}, ${createdBy})
+        RETURNING id, nama_unit AS "namaUnit", kode_unit AS "kodeUnit", kode_nik AS "kodeNik",
+                  parent_unit_id AS "parentUnitId",
                   'OPERASIONAL' AS "tipeUnit", status,
                   created_at::text AS "createdAt", updated_at::text AS "updatedAt",
                   created_by AS "createdBy", updated_by AS "updatedBy"`);
@@ -169,18 +188,20 @@ public function insertUnit(string namaUnit, string kodeUnit, int? parentUnitId, 
 # + id - the unit id
 # + namaUnit - new unit name
 # + kodeUnit - new unique unit code
+# + kodeNik - new unique 2-letter legacy NIK code
 # + parentUnitId - new parent unit id, or () to clear it
 # + status - new status
 # + updatedBy - the `sub` claim of the caller
 # + return - the updated unit, `()` if the unit does not exist (or is deleted), or an error
-public function updateUnit(int id, string namaUnit, string kodeUnit, int? parentUnitId, string status,
-        string updatedBy) returns models:Unit?|error {
+public function updateUnit(int id, string namaUnit, string kodeUnit, string kodeNik, int? parentUnitId,
+        string status, string updatedBy) returns models:Unit?|error {
     postgresql:Client dbc = check dbClient();
     models:Unit|sql:Error updated = dbc->queryRow(`
-        UPDATE unit u SET nama_unit = ${namaUnit}, kode_unit = ${kodeUnit}, parent_unit_id = ${parentUnitId},
-               status = ${status}, updated_by = ${updatedBy}, updated_at = now()
+        UPDATE unit u SET nama_unit = ${namaUnit}, kode_unit = ${kodeUnit}, kode_nik = ${kodeNik},
+               parent_unit_id = ${parentUnitId}, status = ${status}, updated_by = ${updatedBy}, updated_at = now()
         WHERE u.id = ${id} AND u.is_deleted = false
-        RETURNING u.id, u.nama_unit AS "namaUnit", u.kode_unit AS "kodeUnit", u.parent_unit_id AS "parentUnitId",
+        RETURNING u.id, u.nama_unit AS "namaUnit", u.kode_unit AS "kodeUnit", u.kode_nik AS "kodeNik",
+                  u.parent_unit_id AS "parentUnitId",
                   CASE WHEN EXISTS (SELECT 1 FROM unit c WHERE c.parent_unit_id = u.id AND c.is_deleted = false)
                        THEN 'STRUKTURAL' ELSE 'OPERASIONAL' END AS "tipeUnit",
                   u.status, u.created_at::text AS "createdAt", u.updated_at::text AS "updatedAt",

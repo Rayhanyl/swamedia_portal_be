@@ -66,7 +66,7 @@ public function getPembayaranById(int id) returns models:Pembayaran|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created pembayaran, a VALIDATION_ERROR AppError, or an error
-public function createPembayaran(models:PembayaranCreateRequest payload, string subject)
+public function createPembayaran(models:PembayaranCreateRequest payload, string subject, string? ipAddress = ())
         returns models:Pembayaran|error {
     check validateNilaiPositif(payload.nilai);
     string tanggalPengajuan = check validateRequiredDate(payload.tanggalPengajuan, "Tanggal pengajuan");
@@ -81,7 +81,7 @@ public function createPembayaran(models:PembayaranCreateRequest payload, string 
 
     models:Pembayaran created = check repositories:insertPembayaran(payload.proyekId, payload.kategoriId,
             payload.nilai, tanggalPengajuan, tanggalRealisasi, keterangan, subject);
-    logAudit("pembayaran", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("pembayaran", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -92,7 +92,7 @@ public function createPembayaran(models:PembayaranCreateRequest payload, string 
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated pembayaran, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updatePembayaran(int id, models:PembayaranUpdateRequest payload, string subject)
+public function updatePembayaran(int id, models:PembayaranUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:Pembayaran|error {
     check validateNilaiPositif(payload.nilai);
     string tanggalPengajuan = check validateRequiredDate(payload.tanggalPengajuan, "Tanggal pengajuan");
@@ -117,7 +117,7 @@ public function updatePembayaran(int id, models:PembayaranUpdateRequest payload,
     if updated is () {
         return utils:notFoundError("Pembayaran dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("pembayaran", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("pembayaran", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -128,7 +128,7 @@ public function updatePembayaran(int id, models:PembayaranUpdateRequest payload,
 # + payload - the approve request body (optional realization date + note)
 # + subject - the approver's `sub` claim
 # + return - the approved pembayaran, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function approvePembayaran(int id, models:ApproveRequest payload, string subject)
+public function approvePembayaran(int id, models:ApproveRequest payload, string subject, string? ipAddress = ())
         returns models:Pembayaran|error {
     models:Pembayaran pending = check ensurePending(id);
     string? tanggalRealisasi = check validateProyekDate(payload?.tanggalRealisasi, "Tanggal realisasi");
@@ -138,7 +138,7 @@ public function approvePembayaran(int id, models:ApproveRequest payload, string 
     if approved is () {
         return utils:conflictError("Pembayaran tidak dapat di-approve (mungkin statusnya sudah berubah)");
     }
-    logAudit("pembayaran", id.toString(), "UPDATE", pending.toJson(), approved.toJson(), subject);
+    logAudit("pembayaran", id.toString(), "UPDATE", pending.toJson(), approved.toJson(), subject, ipAddress);
     return approved;
 }
 
@@ -148,7 +148,7 @@ public function approvePembayaran(int id, models:ApproveRequest payload, string 
 # + payload - the reject request body (optional note)
 # + subject - the rejecter's `sub` claim
 # + return - the rejected pembayaran, a NOT_FOUND/CONFLICT AppError, or an error
-public function rejectPembayaran(int id, models:RejectRequest payload, string subject)
+public function rejectPembayaran(int id, models:RejectRequest payload, string subject, string? ipAddress = ())
         returns models:Pembayaran|error {
     models:Pembayaran pending = check ensurePending(id);
     string? catatan = normalizeProyekText(payload?.catatan);
@@ -157,7 +157,7 @@ public function rejectPembayaran(int id, models:RejectRequest payload, string su
     if rejected is () {
         return utils:conflictError("Pembayaran tidak dapat di-reject (mungkin statusnya sudah berubah)");
     }
-    logAudit("pembayaran", id.toString(), "UPDATE", pending.toJson(), rejected.toJson(), subject);
+    logAudit("pembayaran", id.toString(), "UPDATE", pending.toJson(), rejected.toJson(), subject, ipAddress);
     return rejected;
 }
 
@@ -166,7 +166,7 @@ public function rejectPembayaran(int id, models:RejectRequest payload, string su
 # + id - the pembayaran id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND AppError, or an error
-public function deletePembayaran(int id, string subject) returns error? {
+public function deletePembayaran(int id, string subject, string? ipAddress = ()) returns error? {
     models:Pembayaran? existing = check repositories:findPembayaranById(id);
     if existing is () {
         return utils:notFoundError("Pembayaran dengan id " + id.toString() + " tidak ditemukan");
@@ -175,7 +175,7 @@ public function deletePembayaran(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Pembayaran dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("pembayaran", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("pembayaran", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

@@ -36,7 +36,7 @@ public function getRolePermissions(int roleId) returns models:RolePermissionMatr
 # + payload - the full set of per-modul grants to persist
 # + subject - the caller's `sub` claim, stored as created_by on every row
 # + return - the saved matrix, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function replaceRolePermissions(int roleId, models:RolePermissionUpdateRequest payload, string subject)
+public function replaceRolePermissions(int roleId, models:RolePermissionUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:RolePermissionMatrix|error {
     models:Role? role = check repositories:findRoleById(roleId);
     if role is () {
@@ -73,6 +73,6 @@ public function replaceRolePermissions(int roleId, models:RolePermissionUpdateRe
     }
 
     models:RolePermissionItem[] items = check repositories:findRolePermissionMatrix(roleId);
-    logAudit("role_permission", roleId.toString(), "UPDATE", oldItems.toJson(), items.toJson(), subject);
+    logAudit("role_permission", roleId.toString(), "UPDATE", oldItems.toJson(), items.toJson(), subject, ipAddress);
     return {roleId: role.id, kodeRole: role.kodeRole, namaRole: role.namaRole, items: items};
 }

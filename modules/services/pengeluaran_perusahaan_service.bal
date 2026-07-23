@@ -62,7 +62,7 @@ public function getPengeluaranById(int id) returns models:PengeluaranPerusahaan|
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created pengeluaran, a VALIDATION_ERROR AppError, or an error
-public function createPengeluaran(models:PengeluaranCreateRequest payload, string subject)
+public function createPengeluaran(models:PengeluaranCreateRequest payload, string subject, string? ipAddress = ())
         returns models:PengeluaranPerusahaan|error {
     check validateNilaiPositif(payload.nilai);
     string tanggalPengajuan = check validateRequiredDate(payload.tanggalPengajuan, "Tanggal pengajuan");
@@ -77,7 +77,7 @@ public function createPengeluaran(models:PengeluaranCreateRequest payload, strin
 
     models:PengeluaranPerusahaan created = check repositories:insertPengeluaran(payload.unitId,
             payload.kategoriId, payload.nilai, tanggalPengajuan, tanggalRealisasi, keterangan, subject);
-    logAudit("pengeluaran_perusahaan", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("pengeluaran_perusahaan", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -88,7 +88,7 @@ public function createPengeluaran(models:PengeluaranCreateRequest payload, strin
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated pengeluaran, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updatePengeluaran(int id, models:PengeluaranUpdateRequest payload, string subject)
+public function updatePengeluaran(int id, models:PengeluaranUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:PengeluaranPerusahaan|error {
     check validateNilaiPositif(payload.nilai);
     string tanggalPengajuan = check validateRequiredDate(payload.tanggalPengajuan, "Tanggal pengajuan");
@@ -113,7 +113,7 @@ public function updatePengeluaran(int id, models:PengeluaranUpdateRequest payloa
     if updated is () {
         return utils:notFoundError("Pengeluaran dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("pengeluaran_perusahaan", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("pengeluaran_perusahaan", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -124,7 +124,7 @@ public function updatePengeluaran(int id, models:PengeluaranUpdateRequest payloa
 # + payload - the approve request body (optional realization date + note)
 # + subject - the approver's `sub` claim
 # + return - the approved pengeluaran, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function approvePengeluaran(int id, models:ApproveRequest payload, string subject)
+public function approvePengeluaran(int id, models:ApproveRequest payload, string subject, string? ipAddress = ())
         returns models:PengeluaranPerusahaan|error {
     models:PengeluaranPerusahaan pending = check ensurePendingPengeluaran(id);
     string? tanggalRealisasi = check validateProyekDate(payload?.tanggalRealisasi, "Tanggal realisasi");
@@ -135,7 +135,7 @@ public function approvePengeluaran(int id, models:ApproveRequest payload, string
     if approved is () {
         return utils:conflictError("Pengeluaran tidak dapat di-approve (mungkin statusnya sudah berubah)");
     }
-    logAudit("pengeluaran_perusahaan", id.toString(), "UPDATE", pending.toJson(), approved.toJson(), subject);
+    logAudit("pengeluaran_perusahaan", id.toString(), "UPDATE", pending.toJson(), approved.toJson(), subject, ipAddress);
     return approved;
 }
 
@@ -145,7 +145,7 @@ public function approvePengeluaran(int id, models:ApproveRequest payload, string
 # + payload - the reject request body (optional note)
 # + subject - the rejecter's `sub` claim
 # + return - the rejected pengeluaran, a NOT_FOUND/CONFLICT AppError, or an error
-public function rejectPengeluaran(int id, models:RejectRequest payload, string subject)
+public function rejectPengeluaran(int id, models:RejectRequest payload, string subject, string? ipAddress = ())
         returns models:PengeluaranPerusahaan|error {
     models:PengeluaranPerusahaan pending = check ensurePendingPengeluaran(id);
     string? catatan = normalizeProyekText(payload?.catatan);
@@ -154,7 +154,7 @@ public function rejectPengeluaran(int id, models:RejectRequest payload, string s
     if rejected is () {
         return utils:conflictError("Pengeluaran tidak dapat di-reject (mungkin statusnya sudah berubah)");
     }
-    logAudit("pengeluaran_perusahaan", id.toString(), "UPDATE", pending.toJson(), rejected.toJson(), subject);
+    logAudit("pengeluaran_perusahaan", id.toString(), "UPDATE", pending.toJson(), rejected.toJson(), subject, ipAddress);
     return rejected;
 }
 
@@ -163,7 +163,7 @@ public function rejectPengeluaran(int id, models:RejectRequest payload, string s
 # + id - the pengeluaran id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND AppError, or an error
-public function deletePengeluaran(int id, string subject) returns error? {
+public function deletePengeluaran(int id, string subject, string? ipAddress = ()) returns error? {
     models:PengeluaranPerusahaan? existing = check repositories:findPengeluaranById(id);
     if existing is () {
         return utils:notFoundError("Pengeluaran dengan id " + id.toString() + " tidak ditemukan");
@@ -172,7 +172,7 @@ public function deletePengeluaran(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Pengeluaran dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("pengeluaran_perusahaan", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("pengeluaran_perusahaan", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

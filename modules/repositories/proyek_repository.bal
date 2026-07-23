@@ -376,6 +376,24 @@ public function getProyekDropdown(string? search) returns models:ProyekDropdownI
     return items;
 }
 
+# Returns the fixed set of operational units a proyek is allowed to be assigned to, for the Create
+# Proyek form's Unit dropdown. `kode_unit` list must be kept in sync with
+# `PROYEK_ELIGIBLE_UNIT_CODES` in proyek_service.bal (the same whitelist `createProyek` validates
+# against) — this is a small, business-fixed set, not user input, so it's inlined here rather than
+# built from a bound array.
+#
+# + return - the eligible units (ordered by nama_unit), or an error
+public function findProyekEligibleUnits() returns models:UnitDropdownItem[]|error {
+    postgresql:Client dbc = check dbClient();
+    return from models:UnitDropdownItem u in dbc->query(`
+            SELECT id, nama_unit AS "namaUnit", kode_unit AS "kodeUnit"
+            FROM unit
+            WHERE is_deleted = false AND status = 'AKTIF'
+              AND kode_unit IN ('SD', 'SE', 'BILL', 'DES', 'POS')
+            ORDER BY nama_unit`, models:UnitDropdownItem)
+        select u;
+}
+
 # Builds the canonical kode_proyek string from its parts. Single source of truth for the format,
 # mirrors `nomor_surat_repository:formatNomor`. Reuses `padUrutan` from that same file/module —
 # both files live in the `repositories` module, so a module-private function defined in one is

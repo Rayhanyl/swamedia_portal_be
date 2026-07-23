@@ -106,3 +106,48 @@ public function markAllNotificationRead(int recipientKaryawanId) returns int|err
     int? affected = result.affectedRowCount;
     return affected ?: 0;
 }
+
+# Inserts a notification row — the write side of the "future concern" noted above, now used by
+# services:sendTeamMemberUndangan (team_member_service.bal) to notify a karyawan they've been
+# assigned to a proyek team.
+#
+# + recipientKaryawanId - the recipient's karyawan id
+# + kategori - PENUGASAN / STATUS / SISTEM
+# + judul - notification title
+# + pesan - notification body
+# + refTable - optional name of the table the notification references
+# + refId - optional id of the row the notification references
+# + linkLabel - optional display label for a frontend deep link
+# + return - the new notification's id, or an error
+public function insertNotification(int recipientKaryawanId, string kategori, string judul, string pesan,
+        string? refTable, int? refId, string? linkLabel) returns int|error {
+    postgresql:Client dbc = check dbClient();
+    return check dbc->queryRow(`
+        INSERT INTO notification (recipient_karyawan_id, kategori, judul, pesan, ref_table, ref_id, link_label)
+        VALUES (${recipientKaryawanId}, ${kategori}, ${judul}, ${pesan}, ${refTable}, ${refId}, ${linkLabel})
+        RETURNING id`);
+}
+
+# Inserts a `notification_email_log` row recording one delivery attempt for a notification's email.
+# `sentAt` is only stamped `now()` when `sent` is true — mirrors the SENT/FAILED status semantics
+# (a FAILED attempt never actually went out).
+#
+# + notificationId - the parent notification id
+# + emailTujuan - the destination address (or a placeholder like "-" if none was available)
+# + status - PENDING / SENT / FAILED
+# + errorMessage - optional failure detail, () on success
+# + sent - whether to stamp `sent_at`
+# + return - () or an error
+public function insertNotificationEmailLog(int notificationId, string emailTujuan, string status,
+        string? errorMessage, boolean sent) returns error? {
+    postgresql:Client dbc = check dbClient();
+    if sent {
+        _ = check dbc->execute(`
+            INSERT INTO notification_email_log (notification_id, email_tujuan, status, error_message, sent_at)
+            VALUES (${notificationId}, ${emailTujuan}, ${status}, ${errorMessage}, now())`);
+    } else {
+        _ = check dbc->execute(`
+            INSERT INTO notification_email_log (notification_id, email_tujuan, status, error_message)
+            VALUES (${notificationId}, ${emailTujuan}, ${status}, ${errorMessage})`);
+    }
+}

@@ -57,7 +57,7 @@ public function getKontrakBiasaById(int id) returns models:KontrakBiasa|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created contract, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createKontrakBiasa(models:KontrakBiasaCreateRequest payload, string subject)
+public function createKontrakBiasa(models:KontrakBiasaCreateRequest payload, string subject, string? ipAddress = ())
         returns models:KontrakBiasa|error {
     string noKontrak = payload.noKontrakBiasa.trim();
     string namaKontrak = payload.namaKontrak.trim();
@@ -88,7 +88,7 @@ public function createKontrakBiasa(models:KontrakBiasaCreateRequest payload, str
         }
         return created;
     }
-    logAudit("kontrak_biasa", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("kontrak_biasa", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -98,7 +98,7 @@ public function createKontrakBiasa(models:KontrakBiasaCreateRequest payload, str
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated contract, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateKontrakBiasa(int id, models:KontrakBiasaUpdateRequest payload, string subject)
+public function updateKontrakBiasa(int id, models:KontrakBiasaUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:KontrakBiasa|error {
     string noKontrak = payload.noKontrakBiasa.trim();
     string namaKontrak = payload.namaKontrak.trim();
@@ -137,7 +137,7 @@ public function updateKontrakBiasa(int id, models:KontrakBiasaUpdateRequest payl
     if updated is () {
         return utils:notFoundError("Kontrak biasa dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("kontrak_biasa", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("kontrak_biasa", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -146,7 +146,7 @@ public function updateKontrakBiasa(int id, models:KontrakBiasaUpdateRequest payl
 # + id - the kontrak biasa id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteKontrakBiasa(int id, string subject) returns error? {
+public function deleteKontrakBiasa(int id, string subject, string? ipAddress = ()) returns error? {
     models:KontrakBiasa? existing = check repositories:findKontrakBiasaById(id);
     if existing is () {
         return utils:notFoundError("Kontrak biasa dengan id " + id.toString() + " tidak ditemukan");
@@ -159,7 +159,7 @@ public function deleteKontrakBiasa(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Kontrak biasa dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("kontrak_biasa", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("kontrak_biasa", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

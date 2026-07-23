@@ -14,22 +14,24 @@ import rayha/swamedia_portal_be.models;
 # reads go through an intermediate flat row type and decode it back to `json` with
 # fromJsonString() before folding into `models:AuditLogEntry`.
 
-# Writes an audit_log row for a change to another table. `ip_address` is left unset (nullable) since
-# there is no request-context plumbing anywhere in this project yet to source it from.
+# Writes an audit_log row for a change to another table.
 #
 # + tableName - the audited table's name (e.g. "nomor_surat")
 # + recordId - the audited row's id — a local table's int PK (as string) or a WSO2 subjectId
 #   (record_id is `varchar(60)` in the DB precisely to fit either)
 # + aksi - "CREATE" / "UPDATE" / "DELETE"
 # + perubahan - `{"column": {"old": ..., "new": ...}, ...}`, JSON-encoded into the text column
-# + aktor - the `sub` claim of the caller (never from the request body)
+# + aktor - a human-readable identifier for the caller (never from the request body) — see
+#   `audit_log_service:logAudit` for how this is resolved
+# + ipAddress - the caller's IP (from `X-Forwarded-For`/`X-Real-IP`, captured once per request by
+#   `TokenDenylistInterceptor` in main.bal), or () when neither header was present
 # + return - an error if the insert failed
 public function insertAuditLog(string tableName, string recordId, string aksi, json perubahan,
-        string aktor) returns error? {
+        string aktor, string? ipAddress = ()) returns error? {
     postgresql:Client dbc = check dbClient();
     _ = check dbc->execute(`
-        INSERT INTO audit_log (table_name, record_id, aksi, aktor, perubahan)
-        VALUES (${tableName}, ${recordId}, ${aksi}, ${aktor}, ${perubahan.toJsonString()})`);
+        INSERT INTO audit_log (table_name, record_id, aksi, aktor, perubahan, ip_address)
+        VALUES (${tableName}, ${recordId}, ${aksi}, ${aktor}, ${perubahan.toJsonString()}, ${ipAddress})`);
 }
 
 # Flat projection of an audit_log row — the shape the SQL client can bind directly (`perubahan` as

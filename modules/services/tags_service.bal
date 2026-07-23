@@ -51,7 +51,7 @@ public function getTagsById(int id) returns models:Tags|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created tag, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createTags(models:TagsCreateRequest payload, string subject) returns models:Tags|error {
+public function createTags(models:TagsCreateRequest payload, string subject, string? ipAddress = ()) returns models:Tags|error {
     string kode = payload.kode.trim();
     check validateTagKode(kode);
     string nama = payload.nama.trim();
@@ -66,7 +66,7 @@ public function createTags(models:TagsCreateRequest payload, string subject) ret
     }
 
     models:Tags created = check repositories:insertTags(kode, nama, unitId, subject);
-    logAudit("tags", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("tags", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -76,7 +76,7 @@ public function createTags(models:TagsCreateRequest payload, string subject) ret
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated tag, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateTags(int id, models:TagsUpdateRequest payload, string subject)
+public function updateTags(int id, models:TagsUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:Tags|error {
     string kode = payload.kode.trim();
     check validateTagKode(kode);
@@ -100,7 +100,7 @@ public function updateTags(int id, models:TagsUpdateRequest payload, string subj
     if updated is () {
         return utils:notFoundError("Tag dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("tags", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("tags", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -109,7 +109,7 @@ public function updateTags(int id, models:TagsUpdateRequest payload, string subj
 # + id - the tag id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteTags(int id, string subject) returns error? {
+public function deleteTags(int id, string subject, string? ipAddress = ()) returns error? {
     models:Tags? existing = check repositories:findTagsById(id);
     if existing is () {
         return utils:notFoundError("Tag dengan id " + id.toString() + " tidak ditemukan");
@@ -124,7 +124,7 @@ public function deleteTags(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Tag dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("tags", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("tags", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

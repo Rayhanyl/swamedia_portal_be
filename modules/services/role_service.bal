@@ -59,7 +59,7 @@ public function getRoleById(int id) returns models:Role|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created role, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createRole(models:RoleCreateRequest payload, string subject) returns models:Role|error {
+public function createRole(models:RoleCreateRequest payload, string subject, string? ipAddress = ()) returns models:Role|error {
     string kodeRole = payload.kodeRole.trim();
     check validateKodeRole(kodeRole);
     string namaRole = payload.namaRole.trim();
@@ -77,7 +77,7 @@ public function createRole(models:RoleCreateRequest payload, string subject) ret
     }
 
     models:Role created = check repositories:insertRole(kodeRole, namaRole, deskripsi, status, subject);
-    logAudit("role", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("role", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -87,7 +87,7 @@ public function createRole(models:RoleCreateRequest payload, string subject) ret
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated role, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateRole(int id, models:RoleUpdateRequest payload, string subject) returns models:Role|error {
+public function updateRole(int id, models:RoleUpdateRequest payload, string subject, string? ipAddress = ()) returns models:Role|error {
     string kodeRole = payload.kodeRole.trim();
     check validateKodeRole(kodeRole);
     string namaRole = payload.namaRole.trim();
@@ -112,7 +112,7 @@ public function updateRole(int id, models:RoleUpdateRequest payload, string subj
     if updated is () {
         return utils:notFoundError("Role dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("role", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("role", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -122,7 +122,7 @@ public function updateRole(int id, models:RoleUpdateRequest payload, string subj
 # + id - the role id to delete
 # + subject - the caller's `sub` claim, stored as the audit_log `aktor`
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteRole(int id, string subject) returns error? {
+public function deleteRole(int id, string subject, string? ipAddress = ()) returns error? {
     models:Role? existing = check repositories:findRoleById(id);
     if existing is () {
         return utils:notFoundError("Role dengan id " + id.toString() + " tidak ditemukan");
@@ -132,7 +132,7 @@ public function deleteRole(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Role dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("role", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("role", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
 
     error? cacheErr = repositories:cacheDelete(
             "role:" + id.toString() + ":permissions", "role:" + id.toString() + ":menu");

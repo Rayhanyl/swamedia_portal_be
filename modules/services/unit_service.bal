@@ -1,3 +1,4 @@
+import ballerina/lang.regexp;
 import rayha/swamedia_portal_be.models;
 import rayha/swamedia_portal_be.repositories;
 import rayha/swamedia_portal_be.utils;
@@ -10,6 +11,9 @@ import rayha/swamedia_portal_be.utils;
 
 const string STATUS_AKTIF = "AKTIF";
 const string STATUS_TIDAK_AKTIF = "TIDAK_AKTIF";
+
+# kode_nik: exactly 2 uppercase letters (the DB column is VARCHAR(2)).
+final regexp:RegExp KODE_NIK_PATTERN = re `[A-Z]{2}`;
 
 # Maximum ancestor-chain depth walked when checking for circular references — a safety
 # valve against already-corrupt data, far above any realistic org hierarchy depth.
@@ -99,12 +103,15 @@ public function getUnitTree() returns models:UnitTreeNode[]|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created unit, a VALIDATION_ERROR AppError, or an error
-public function createUnit(models:UnitCreateRequest payload, string subject) returns models:Unit|error {
+public function createUnit(models:UnitCreateRequest payload, string subject, string? ipAddress = ()) returns models:Unit|error {
     string namaUnit = payload.namaUnit.trim();
     check validateNamaUnit(namaUnit);
 
     string kodeUnit = payload.kodeUnit.trim();
     check validateKodeUnit(kodeUnit);
+
+    string kodeNik = payload.kodeNik.trim().toUpperAscii();
+    check validateKodeNik(kodeNik);
 
     string status = payload?.status ?: STATUS_AKTIF;
     if !isValidStatus(status) {
@@ -129,8 +136,13 @@ public function createUnit(models:UnitCreateRequest payload, string subject) ret
         return utils:conflictError("Kode unit sudah digunakan");
     }
 
-    models:Unit created = check repositories:insertUnit(namaUnit, kodeUnit, parentUnitId, status, subject);
-    logAudit("unit", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    boolean kodeNikDuplicate = check repositories:kodeNikExists(kodeNik, 0);
+    if kodeNikDuplicate {
+        return utils:conflictError("Kode NIK sudah digunakan unit lain");
+    }
+
+    models:Unit created = check repositories:insertUnit(namaUnit, kodeUnit, kodeNik, parentUnitId, status, subject);
+    logAudit("unit", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -141,13 +153,16 @@ public function createUnit(models:UnitCreateRequest payload, string subject) ret
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated unit, a VALIDATION_ERROR/NOT_FOUND AppError, or an error
-public function updateUnit(int id, models:UnitUpdateRequest payload, string subject)
+public function updateUnit(int id, models:UnitUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:Unit|error {
     string namaUnit = payload.namaUnit.trim();
     check validateNamaUnit(namaUnit);
 
     string kodeUnit = payload.kodeUnit.trim();
     check validateKodeUnit(kodeUnit);
+
+    string kodeNik = payload.kodeNik.trim().toUpperAscii();
+    check validateKodeNik(kodeNik);
 
     if !isValidStatus(payload.status) {
         return utils:validationError("Status hanya boleh AKTIF atau TIDAK_AKTIF");
@@ -180,11 +195,17 @@ public function updateUnit(int id, models:UnitUpdateRequest payload, string subj
         return utils:conflictError("Kode unit sudah digunakan");
     }
 
-    models:Unit? updated = check repositories:updateUnit(id, namaUnit, kodeUnit, parentUnitId, payload.status, subject);
+    boolean kodeNikDuplicate = check repositories:kodeNikExists(kodeNik, id);
+    if kodeNikDuplicate {
+        return utils:conflictError("Kode NIK sudah digunakan unit lain");
+    }
+
+    models:Unit? updated =
+        check repositories:updateUnit(id, namaUnit, kodeUnit, kodeNik, parentUnitId, payload.status, subject);
     if updated is () {
         return utils:notFoundError("Unit dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -193,7 +214,7 @@ public function updateUnit(int id, models:UnitUpdateRequest payload, string subj
 # + id - the unit id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteUnit(int id, string subject) returns error? {
+public function deleteUnit(int id, string subject, string? ipAddress = ()) returns error? {
     models:Unit? existing = check repositories:findUnitById(id);
     if existing is () {
         return utils:notFoundError("Unit dengan id " + id.toString() + " tidak ditemukan");
@@ -208,7 +229,7 @@ public function deleteUnit(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Unit dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("unit", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("unit", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 
@@ -231,6 +252,19 @@ function validateNamaUnit(string namaUnit) returns models:AppError? {
 function validateKodeUnit(string kodeUnit) returns models:AppError? {
     if kodeUnit.length() < 1 || kodeUnit.length() > 20 {
         return utils:validationError("kode_unit wajib diisi, panjang maksimal 20 karakter");
+    }
+    return ();
+}
+
+# Validates kode_nik: required, exactly 2 letters (matches the DB column's VARCHAR(2) NOT
+# NULL UNIQUE constraint) — the legacy 2-letter code embedded in karyawan NIK for this unit
+# (e.g. "BL"), deliberately independent from `kode_unit` (e.g. "BILL").
+#
+# + kodeNik - the code to validate
+# + return - a VALIDATION_ERROR AppError if invalid, () if valid
+function validateKodeNik(string kodeNik) returns models:AppError? {
+    if !KODE_NIK_PATTERN.isFullMatch(kodeNik) {
+        return utils:validationError("kode_nik wajib diisi, tepat 2 huruf (A-Z)");
     }
     return ();
 }

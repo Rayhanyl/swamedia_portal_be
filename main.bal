@@ -371,10 +371,13 @@ service /api/v1/master/units on apiListener {
     # POST /api/v1/master/units — create a unit. created_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UnitCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Unit created = check services:createUnit(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Unit created = check services:createUnit(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Unit berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create unit");
@@ -384,10 +387,13 @@ service /api/v1/master/units on apiListener {
     # PUT /api/v1/master/units/{id} — update a unit. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UnitUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Unit updated = check services:updateUnit(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Unit updated = check services:updateUnit(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Unit berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update unit");
@@ -396,11 +402,14 @@ service /api/v1/master/units on apiListener {
 
     # DELETE /api/v1/master/units/{id} — soft delete (is_deleted = true).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteUnit(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteUnit(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Unit berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete unit");
@@ -461,10 +470,13 @@ service /api/v1/master/industries on apiListener {
     # POST /api/v1/master/industries — create an industri. created_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:IndustriCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Industri created = check services:createIndustri(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Industri created = check services:createIndustri(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Industri berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create industri");
@@ -474,10 +486,13 @@ service /api/v1/master/industries on apiListener {
     # PUT /api/v1/master/industries/{id} — update an industri. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:IndustriUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Industri updated = check services:updateIndustri(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Industri updated = check services:updateIndustri(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Industri berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update industri");
@@ -486,11 +501,14 @@ service /api/v1/master/industries on apiListener {
 
     # DELETE /api/v1/master/industries/{id} — soft delete (is_deleted = true).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteIndustri(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteIndustri(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Industri berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete industri");
@@ -553,10 +571,13 @@ service /api/v1/master/tags on apiListener {
     # POST /api/v1/master/tags — create a tag. created_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TagsCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Tags created = check services:createTags(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Tags created = check services:createTags(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Tag berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create tag");
@@ -566,10 +587,13 @@ service /api/v1/master/tags on apiListener {
     # PUT /api/v1/master/tags/{id} — update a tag. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TagsUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Tags updated = check services:updateTags(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Tags updated = check services:updateTags(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Tag berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update tag");
@@ -578,11 +602,14 @@ service /api/v1/master/tags on apiListener {
 
     # DELETE /api/v1/master/tags/{id} — soft delete (is_deleted = true).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteTags(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteTags(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Tag berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete tag");
@@ -645,10 +672,13 @@ service /api/v1/master/resource\-tags on apiListener {
     # POST /api/v1/master/resource-tags — create. created_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ResourceTagsCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:ResourceTags created = check services:createResourceTags(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:ResourceTags created = check services:createResourceTags(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Resource tag berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create resource tag");
@@ -658,10 +688,13 @@ service /api/v1/master/resource\-tags on apiListener {
     # PUT /api/v1/master/resource-tags/{id} — update. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ResourceTagsUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:ResourceTags updated = check services:updateResourceTags(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:ResourceTags updated = check services:updateResourceTags(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Resource tag berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update resource tag");
@@ -670,11 +703,14 @@ service /api/v1/master/resource\-tags on apiListener {
 
     # DELETE /api/v1/master/resource-tags/{id} — soft delete (is_deleted = true).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteResourceTags(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteResourceTags(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Resource tag berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete resource tag");
@@ -736,10 +772,13 @@ service /api/v1/master/kategori\-surat on apiListener {
     # POST /api/v1/master/kategori-surat — create (always non-default). created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KategoriSuratCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KategoriSurat created = check services:createKategoriSurat(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KategoriSurat created = check services:createKategoriSurat(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Kategori surat berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create kategori surat");
@@ -749,10 +788,13 @@ service /api/v1/master/kategori\-surat on apiListener {
     # PUT /api/v1/master/kategori-surat/{id} — update (is_default untouched). updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KategoriSuratUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KategoriSurat updated = check services:updateKategoriSurat(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KategoriSurat updated = check services:updateKategoriSurat(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Kategori surat berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update kategori surat");
@@ -761,11 +803,14 @@ service /api/v1/master/kategori\-surat on apiListener {
 
     # DELETE /api/v1/master/kategori-surat/{id} — hard delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteKategoriSurat(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteKategoriSurat(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Kategori surat berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete kategori surat");
@@ -827,10 +872,13 @@ service /api/v1/master/roles on apiListener {
     # POST /api/v1/master/roles — create a role. created_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:RoleCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Role created = check services:createRole(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Role created = check services:createRole(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Role berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create role");
@@ -840,10 +888,13 @@ service /api/v1/master/roles on apiListener {
     # PUT /api/v1/master/roles/{id} — update a role. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:RoleUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Role updated = check services:updateRole(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Role updated = check services:updateRole(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Role berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update role");
@@ -852,11 +903,14 @@ service /api/v1/master/roles on apiListener {
 
     # DELETE /api/v1/master/roles/{id} — hard delete (cascades role_permission/role_menu cleanup).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteRole(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteRole(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Role berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete role");
@@ -931,10 +985,13 @@ service /api/v1/master/menu on apiListener {
     # POST /api/v1/master/menu — create a menu node.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:MenuCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Menu created = check services:createMenu(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Menu created = check services:createMenu(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Menu berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create menu");
@@ -944,10 +1001,13 @@ service /api/v1/master/menu on apiListener {
     # PUT /api/v1/master/menu/{id} — update a menu node.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:MenuUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Menu updated = check services:updateMenu(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Menu updated = check services:updateMenu(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Menu berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update menu");
@@ -956,11 +1016,14 @@ service /api/v1/master/menu on apiListener {
 
     # DELETE /api/v1/master/menu/{id} — hard delete; blocked while active sub-menu exist.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteMenu(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteMenu(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Menu berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete menu");
@@ -1053,10 +1116,13 @@ service /api/v1/master/role\-permissions on apiListener {
     # matrix. created_by on every row comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int roleId](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:RolePermissionUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:RolePermissionMatrix matrix = check services:replaceRolePermissions(roleId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:RolePermissionMatrix matrix = check services:replaceRolePermissions(roleId, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, matrix, "Matriks permission role berhasil disimpan");
         } on fail error err {
             return errorHttp(err, "Failed to save role permissions");
@@ -1108,10 +1174,13 @@ service /api/v1/master/role\-menus on apiListener {
     # PUT /api/v1/master/role-menus/{roleId} — replace the role's entire assigned-menu set.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int roleId](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:RoleMenuUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:RoleMenuMatrix matrix = check services:replaceRoleMenus(roleId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:RoleMenuMatrix matrix = check services:replaceRoleMenus(roleId, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, matrix, "Menu role berhasil disimpan");
         } on fail error err {
             return errorHttp(err, "Failed to save role menus");
@@ -1203,6 +1272,20 @@ service /api/v1/master/karyawan on apiListener {
         }
     }
 
+    # GET /api/v1/master/karyawan/preview-nik — read-only preview of the NIK a create would
+    # suggest right now for the Tambah Karyawan form. `unit_id` and `tipe_karyawan` are required —
+    # both feed the suggested NIK's unit/type letters. Literal path registered before the list
+    # `.`/`[int id]` resources, mirroring the `dropdown` precedent above.
+    # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
+    resource function get preview\-nik(int unit_id, string tipe_karyawan, int? tahun) returns http:Response {
+        do {
+            models:KaryawanNikPreview preview = check services:previewNik(unit_id, tipe_karyawan, tahun);
+            return successHttp(http:STATUS_OK, preview, "Preview NIK karyawan");
+        } on fail error err {
+            return errorHttp(err, "Failed to preview nik karyawan");
+        }
+    }
+
     # GET /api/v1/master/karyawan — paginated list (no subject_id), optional search/unit/status filters.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function get .(string? search, int? unit_id, string? status, int page = 1, int 'limit = 20)
@@ -1229,10 +1312,13 @@ service /api/v1/master/karyawan on apiListener {
     # POST /api/v1/master/karyawan — create. created_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KaryawanCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KaryawanDetail created = check services:createKaryawan(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KaryawanDetail created = check services:createKaryawan(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Karyawan berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create karyawan");
@@ -1242,10 +1328,13 @@ service /api/v1/master/karyawan on apiListener {
     # PUT /api/v1/master/karyawan/{id} — update. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KaryawanUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KaryawanDetail updated = check services:updateKaryawan(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KaryawanDetail updated = check services:updateKaryawan(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Karyawan berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update karyawan");
@@ -1254,11 +1343,14 @@ service /api/v1/master/karyawan on apiListener {
 
     # DELETE /api/v1/master/karyawan/{id} — soft delete (is_deleted = true).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteKaryawan(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteKaryawan(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Karyawan berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete karyawan");
@@ -1322,10 +1414,13 @@ service /api/v1/master/customers on apiListener {
     # POST /api/v1/master/customers — create. created_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:CustomerCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:CustomerDetail created = check services:createCustomer(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:CustomerDetail created = check services:createCustomer(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Customer berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create customer");
@@ -1335,10 +1430,13 @@ service /api/v1/master/customers on apiListener {
     # PUT /api/v1/master/customers/{id} — update. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:CustomerUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:CustomerDetail updated = check services:updateCustomer(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:CustomerDetail updated = check services:updateCustomer(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Customer berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update customer");
@@ -1347,11 +1445,14 @@ service /api/v1/master/customers on apiListener {
 
     # DELETE /api/v1/master/customers/{id} — soft delete (is_deleted = true).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteCustomer(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteCustomer(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Customer berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete customer");
@@ -1414,10 +1515,13 @@ service /api/v1/master/contacts on apiListener {
     # POST /api/v1/master/contacts — create. created_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ContactCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Contact created = check services:createContact(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Contact created = check services:createContact(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Contact berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create contact");
@@ -1427,10 +1531,13 @@ service /api/v1/master/contacts on apiListener {
     # PUT /api/v1/master/contacts/{id} — update. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ContactUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Contact updated = check services:updateContact(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Contact updated = check services:updateContact(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Contact berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update contact");
@@ -1439,11 +1546,14 @@ service /api/v1/master/contacts on apiListener {
 
     # DELETE /api/v1/master/contacts/{id} — soft delete (is_deleted = true).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteContact(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteContact(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Contact berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete contact");
@@ -1526,10 +1636,13 @@ service /api/v1/business/daftar\-surat on apiListener {
     # POST /api/v1/business/daftar-surat — create with auto-generated nomor. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:NomorSuratCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:NomorSurat created = check services:createNomorSurat(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:NomorSurat created = check services:createNomorSurat(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Surat berhasil ditambahkan");
         } on fail error err {
             return errorHttp(err, "Failed to create surat");
@@ -1539,10 +1652,13 @@ service /api/v1/business/daftar\-surat on apiListener {
     # PUT /api/v1/business/daftar-surat/{id} — update mutable fields only. updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:NomorSuratUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:NomorSurat updated = check services:updateNomorSurat(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:NomorSurat updated = check services:updateNomorSurat(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Surat berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update surat");
@@ -1555,10 +1671,13 @@ service /api/v1/business/daftar\-surat on apiListener {
     # scratch via a normal POST. updated_by comes from the token's `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:CancelNomorSuratRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:NomorSuratCancelled cancelled = check services:cancelNomorSurat(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:NomorSuratCancelled cancelled = check services:cancelNomorSurat(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, cancelled, "Surat berhasil dibatalkan");
         } on fail error err {
             return errorHttp(err, "Failed to cancel surat");
@@ -1611,6 +1730,19 @@ service /api/v1/business/proyek on apiListener {
         }
     }
 
+    # GET /api/v1/business/proyek/units — the fixed set of units eligible to own a proyek, for the
+    # Create Proyek form's Unit select. Declared before `.`/`[int id]` for the same
+    # routing-precedence reason as `/api/v1/master/units/tree`.
+    # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
+    resource function get units() returns http:Response {
+        do {
+            models:UnitDropdownItem[] items = check services:getProyekEligibleUnits();
+            return successHttp(http:STATUS_OK, items, "Daftar unit untuk proyek berhasil diambil");
+        } on fail error err {
+            return errorHttp(err, "Failed to get proyek eligible units");
+        }
+    }
+
     # GET /api/v1/business/proyek — paginated list, optional search + customer/industri/unit/
     # PIC Sales/status/tahun filters.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
@@ -1650,10 +1782,13 @@ service /api/v1/business/proyek on apiListener {
     # POST /api/v1/business/proyek — create. kodeProyek is server-generated. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ProyekCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Proyek created = check services:createProyek(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Proyek created = check services:createProyek(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Proyek berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create proyek");
@@ -1664,10 +1799,13 @@ service /api/v1/business/proyek on apiListener {
     # updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ProyekUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Proyek updated = check services:updateProyek(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Proyek updated = check services:updateProyek(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Proyek berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update proyek");
@@ -1676,11 +1814,14 @@ service /api/v1/business/proyek on apiListener {
 
     # DELETE /api/v1/business/proyek/{id} — soft delete (is_deleted = true).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteProyek(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteProyek(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Proyek berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete proyek");
@@ -1703,10 +1844,13 @@ service /api/v1/business/proyek on apiListener {
     # POST /api/v1/business/proyek/{proyekId}/unit-share — add a share. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post [int proyekId]/unit\-share(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UnitShareCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:UnitShare created = check services:createUnitShare(proyekId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:UnitShare created = check services:createUnitShare(proyekId, payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Unit share berhasil ditambahkan");
         } on fail error err {
             return errorHttp(err, "Failed to create unit share");
@@ -1717,10 +1861,13 @@ service /api/v1/business/proyek on apiListener {
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int proyekId]/unit\-share/[int id](
             @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UnitShareUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:UnitShare updated = check services:updateUnitShare(proyekId, id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:UnitShare updated = check services:updateUnitShare(proyekId, id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Unit share berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update unit share");
@@ -1730,10 +1877,13 @@ service /api/v1/business/proyek on apiListener {
     # DELETE /api/v1/business/proyek/{proyekId}/unit-share/{id} — soft delete a share.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function delete [int proyekId]/unit\-share/[int id](
-            @http:Header {name: "Authorization"} string? authorization) returns http:Response {
+            @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteUnitShare(proyekId, id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteUnitShare(proyekId, id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Unit share berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete unit share");
@@ -1756,10 +1906,13 @@ service /api/v1/business/proyek on apiListener {
     # POST /api/v1/business/proyek/{proyekId}/team-member — assign a member. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post [int proyekId]/team\-member(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TeamMemberCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:TeamMember created = check services:createTeamMember(proyekId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:TeamMember created = check services:createTeamMember(proyekId, payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Team member berhasil ditambahkan");
         } on fail error err {
             return errorHttp(err, "Failed to create team member");
@@ -1770,10 +1923,13 @@ service /api/v1/business/proyek on apiListener {
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int proyekId]/team\-member/[int id](
             @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TeamMemberUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:TeamMember updated = check services:updateTeamMember(proyekId, id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:TeamMember updated = check services:updateTeamMember(proyekId, id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Team member berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update team member");
@@ -1783,13 +1939,41 @@ service /api/v1/business/proyek on apiListener {
     # DELETE /api/v1/business/proyek/{proyekId}/team-member/{id} — soft delete a member.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function delete [int proyekId]/team\-member/[int id](
-            @http:Header {name: "Authorization"} string? authorization) returns http:Response {
+            @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteTeamMember(proyekId, id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteTeamMember(proyekId, id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Team member berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete team member");
+        }
+    }
+
+    # POST /api/v1/business/proyek/{proyekId}/team-member/undangan — sends the invitation email to
+    # every team member whose undangan_status is BELUM_DIKIRIM or GAGAL (already-TERKIRIM members
+    # are skipped, so this is safe to re-run after adding more members). undangan_sent_by from token
+    # `sub`. Declared after the `[int id]` routes — the literal "undangan" segment only matches this
+    # resource, never `[int id]`, same precedence as `/dropdown`/`/units` above.
+    # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
+    resource function post [int proyekId]/team\-member/undangan(
+            @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp) returns http:Response {
+        do {
+            string subject = check utils:subjectFromAccessToken(authorization);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:TeamMemberUndanganResult result = check services:sendTeamMemberUndangan(
+                    proyekId, subject, ipAddress);
+            string message = result.totalTargeted == 0
+                ? "Tidak ada anggota tim yang perlu dikirimi undangan"
+                : "Undangan email diproses: " + result.totalSent.toString() + " terkirim, " +
+                    result.totalFailed.toString() + " gagal";
+            return successHttp(http:STATUS_OK, result, message);
+        } on fail error err {
+            return errorHttp(err, "Failed to send team member undangan");
         }
     }
 
@@ -1809,10 +1993,13 @@ service /api/v1/business/proyek on apiListener {
     # PUT /api/v1/business/proyek/{proyekId}/tags — replace the proyek's entire tag set.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int proyekId]/tags(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ProyekTagsUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:ProyekTag[] items = check services:replaceProyekTags(proyekId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:ProyekTag[] items = check services:replaceProyekTags(proyekId, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, items, "Tag proyek berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to replace proyek tags");
@@ -1822,10 +2009,13 @@ service /api/v1/business/proyek on apiListener {
     # POST /api/v1/business/proyek/{proyekId}/tags/{tagId} — attach a single tag (idempotent).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post [int proyekId]/tags/[int tagId](
-            @http:Header {name: "Authorization"} string? authorization) returns http:Response {
+            @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:ProyekTag[] items = check services:attachProyekTag(proyekId, tagId, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:ProyekTag[] items = check services:attachProyekTag(proyekId, tagId, subject, ipAddress);
             return successHttp(http:STATUS_OK, items, "Tag berhasil ditambahkan ke proyek");
         } on fail error err {
             return errorHttp(err, "Failed to attach proyek tag");
@@ -1835,10 +2025,13 @@ service /api/v1/business/proyek on apiListener {
     # DELETE /api/v1/business/proyek/{proyekId}/tags/{tagId} — detach a single tag.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function delete [int proyekId]/tags/[int tagId](
-            @http:Header {name: "Authorization"} string? authorization) returns http:Response {
+            @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:detachProyekTag(proyekId, tagId, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:detachProyekTag(proyekId, tagId, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Tag berhasil dilepas dari proyek");
         } on fail error err {
             return errorHttp(err, "Failed to detach proyek tag");
@@ -1918,10 +2111,13 @@ service /api/v1/business/kontrak\-payung on apiListener {
     # POST /api/v1/business/kontrak-payung — create (with optional price lines). created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KontrakPayungCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KontrakPayung created = check services:createKontrakPayung(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KontrakPayung created = check services:createKontrakPayung(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Kontrak payung berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create kontrak payung");
@@ -1932,10 +2128,13 @@ service /api/v1/business/kontrak\-payung on apiListener {
     # present in the body. updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KontrakPayungUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KontrakPayung updated = check services:updateKontrakPayung(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KontrakPayung updated = check services:updateKontrakPayung(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Kontrak payung berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update kontrak payung");
@@ -1944,11 +2143,14 @@ service /api/v1/business/kontrak\-payung on apiListener {
 
     # DELETE /api/v1/business/kontrak-payung/{id} — soft delete (refused while still referenced).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteKontrakPayung(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteKontrakPayung(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Kontrak payung berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete kontrak payung");
@@ -2030,10 +2232,13 @@ service /api/v1/business/kontrak\-biasa on apiListener {
     # POST /api/v1/business/kontrak-biasa — create. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KontrakBiasaCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KontrakBiasa created = check services:createKontrakBiasa(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KontrakBiasa created = check services:createKontrakBiasa(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Kontrak biasa berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create kontrak biasa");
@@ -2043,10 +2248,13 @@ service /api/v1/business/kontrak\-biasa on apiListener {
     # PUT /api/v1/business/kontrak-biasa/{id} — update. updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KontrakBiasaUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KontrakBiasa updated = check services:updateKontrakBiasa(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KontrakBiasa updated = check services:updateKontrakBiasa(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Kontrak biasa berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update kontrak biasa");
@@ -2055,11 +2263,14 @@ service /api/v1/business/kontrak\-biasa on apiListener {
 
     # DELETE /api/v1/business/kontrak-biasa/{id} — soft delete (refused while still referenced).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteKontrakBiasa(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteKontrakBiasa(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Kontrak biasa berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete kontrak biasa");
@@ -2126,10 +2337,13 @@ service /api/v1/business/target\-revenue\-unit on apiListener {
     # POST /api/v1/business/target-revenue-unit — create. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TargetRevenueUnitCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:TargetRevenueUnit created = check services:createTargetRevenueUnit(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:TargetRevenueUnit created = check services:createTargetRevenueUnit(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Target revenue unit berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create target revenue unit");
@@ -2139,10 +2353,13 @@ service /api/v1/business/target\-revenue\-unit on apiListener {
     # PUT /api/v1/business/target-revenue-unit/{id} — update. updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TargetRevenueUnitUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:TargetRevenueUnit updated = check services:updateTargetRevenueUnit(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:TargetRevenueUnit updated = check services:updateTargetRevenueUnit(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Target revenue unit berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update target revenue unit");
@@ -2151,11 +2368,14 @@ service /api/v1/business/target\-revenue\-unit on apiListener {
 
     # DELETE /api/v1/business/target-revenue-unit/{id} — physical delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteTargetRevenueUnit(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteTargetRevenueUnit(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Target revenue unit berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete target revenue unit");
@@ -2280,10 +2500,13 @@ service /api/v1/profil\-saya on apiListener {
     # PUT /api/v1/profil-saya — update the caller's own contact info (email, noHp only).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ProfilSayaUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KaryawanDetail updated = check services:updateMyProfile(subject, payload);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KaryawanDetail updated = check services:updateMyProfile(subject, payload, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Profil berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update profil saya");
@@ -2348,10 +2571,13 @@ service /api/v1/akun\-saya on apiListener {
     # here (see service doc above).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:AkunSayaUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:AkunProfile updated = check services:updateMyAccount(subject, payload);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:AkunProfile updated = check services:updateMyAccount(subject, payload, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Akun berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update akun saya");
@@ -2362,10 +2588,13 @@ service /api/v1/akun\-saya on apiListener {
     # data-update form above).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put password(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:PasswordUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:updateMyPassword(subject, payload);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:updateMyPassword(subject, payload, ipAddress);
             return successHttp(http:STATUS_OK, (), "Password berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update password");
@@ -2622,10 +2851,13 @@ service /api/v1/konfigurasi\-sistem on apiListener {
     # PUT /api/v1/konfigurasi-sistem/{key} — update a setting's value. updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [string konfigKey](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:SysConfigUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:SysConfig updated = check services:updateSysConfigValue(konfigKey, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:SysConfig updated = check services:updateSysConfigValue(konfigKey, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Konfigurasi sistem berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update konfigurasi sistem");
@@ -2693,10 +2925,13 @@ service /api/v1/manajemen\-user on apiListener {
     # POST /api/v1/manajemen-user — provision a new WSO2 IS user via SCIM2 (+ write-through cache).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UserCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:UserCacheItem created = check services:createUser(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:UserCacheItem created = check services:createUser(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "User berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create user");
@@ -2706,10 +2941,13 @@ service /api/v1/manajemen\-user on apiListener {
     # PUT /api/v1/manajemen-user/{subjectId} — update a user's profile (nama/email) via SCIM2.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [string subjectId](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UserUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:UserCacheItem updated = check services:updateUser(subjectId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:UserCacheItem updated = check services:updateUser(subjectId, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "User berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update user");
@@ -2719,10 +2957,13 @@ service /api/v1/manajemen\-user on apiListener {
     # PUT /api/v1/manajemen-user/{subjectId}/role — set/clear the portal role (swaportal_role_id).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [string subjectId]/role(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UserRoleUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:UserCacheItem updated = check services:setUserRole(subjectId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:UserCacheItem updated = check services:setUserRole(subjectId, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Role user berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to set user role");
@@ -2732,10 +2973,13 @@ service /api/v1/manajemen\-user on apiListener {
     # PUT /api/v1/manajemen-user/{subjectId}/status — enable/disable the account (SCIM `active`).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [string subjectId]/status(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UserStatusUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:UserCacheItem updated = check services:setUserStatus(subjectId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:UserCacheItem updated = check services:setUserStatus(subjectId, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Status user berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to set user status");
@@ -2760,10 +3004,13 @@ service /api/v1/manajemen\-user on apiListener {
     # app-level credential the endpoints above use. Every field optional (only fields sent change).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [string subjectId]/akun(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:UserAccountUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:AkunProfile updated = check services:updateUserAccount(subjectId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:AkunProfile updated = check services:updateUserAccount(subjectId, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Akun user berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update user akun");
@@ -2774,10 +3021,13 @@ service /api/v1/manajemen\-user on apiListener {
     # password (separate from the data-update form at PUT .../akun).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [string subjectId]/password(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:PasswordUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:updateUserPassword(subjectId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:updateUserPassword(subjectId, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Password user berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update user password");
@@ -2854,10 +3104,13 @@ service /api/v1/finance/tagihan on apiListener {
     # POST /api/v1/finance/tagihan — create. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TagihanCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Tagihan created = check services:createTagihan(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Tagihan created = check services:createTagihan(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Tagihan berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create tagihan");
@@ -2867,10 +3120,13 @@ service /api/v1/finance/tagihan on apiListener {
     # PUT /api/v1/finance/tagihan/{id} — update. updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TagihanUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Tagihan updated = check services:updateTagihan(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Tagihan updated = check services:updateTagihan(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Tagihan berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update tagihan");
@@ -2879,11 +3135,14 @@ service /api/v1/finance/tagihan on apiListener {
 
     # DELETE /api/v1/finance/tagihan/{id} — soft delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteTagihan(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteTagihan(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Tagihan berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete tagihan");
@@ -2906,10 +3165,13 @@ service /api/v1/finance/tagihan on apiListener {
     # POST /api/v1/finance/tagihan/{tagihanId}/pencairan — add a pencairan. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post [int tagihanId]/pencairan(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:PencairanCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:PencairanTagihan created = check services:createPencairan(tagihanId, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:PencairanTagihan created = check services:createPencairan(tagihanId, payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Pencairan berhasil ditambahkan");
         } on fail error err {
             return errorHttp(err, "Failed to create pencairan");
@@ -2920,10 +3182,13 @@ service /api/v1/finance/tagihan on apiListener {
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int tagihanId]/pencairan/[int id](
             @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:PencairanUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:PencairanTagihan updated = check services:updatePencairan(tagihanId, id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:PencairanTagihan updated = check services:updatePencairan(tagihanId, id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Pencairan berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update pencairan");
@@ -2933,10 +3198,13 @@ service /api/v1/finance/tagihan on apiListener {
     # DELETE /api/v1/finance/tagihan/{tagihanId}/pencairan/{id} — soft delete a pencairan.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function delete [int tagihanId]/pencairan/[int id](
-            @http:Header {name: "Authorization"} string? authorization) returns http:Response {
+            @http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deletePencairan(tagihanId, id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deletePencairan(tagihanId, id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Pencairan berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete pencairan");
@@ -3002,10 +3270,13 @@ service /api/v1/finance/pembayaran on apiListener {
     # POST /api/v1/finance/pembayaran — create (status PENGAJUAN). created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:PembayaranCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Pembayaran created = check services:createPembayaran(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Pembayaran created = check services:createPembayaran(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Pembayaran berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create pembayaran");
@@ -3015,10 +3286,13 @@ service /api/v1/finance/pembayaran on apiListener {
     # PUT /api/v1/finance/pembayaran/{id} — update (only PENGAJUAN/REJECTED; resets to PENGAJUAN).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:PembayaranUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Pembayaran updated = check services:updatePembayaran(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Pembayaran updated = check services:updatePembayaran(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Pembayaran berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update pembayaran");
@@ -3028,10 +3302,13 @@ service /api/v1/finance/pembayaran on apiListener {
     # PUT /api/v1/finance/pembayaran/{id}/approve — approve a PENGAJUAN pembayaran. approved_by from token.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id]/approve(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ApproveRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Pembayaran approved = check services:approvePembayaran(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Pembayaran approved = check services:approvePembayaran(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, approved, "Pembayaran berhasil di-approve");
         } on fail error err {
             return errorHttp(err, "Failed to approve pembayaran");
@@ -3041,10 +3318,13 @@ service /api/v1/finance/pembayaran on apiListener {
     # PUT /api/v1/finance/pembayaran/{id}/reject — reject a PENGAJUAN pembayaran. approved_by from token.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id]/reject(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:RejectRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:Pembayaran rejected = check services:rejectPembayaran(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:Pembayaran rejected = check services:rejectPembayaran(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, rejected, "Pembayaran berhasil di-reject");
         } on fail error err {
             return errorHttp(err, "Failed to reject pembayaran");
@@ -3053,11 +3333,14 @@ service /api/v1/finance/pembayaran on apiListener {
 
     # DELETE /api/v1/finance/pembayaran/{id} — soft delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deletePembayaran(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deletePembayaran(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Pembayaran berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete pembayaran");
@@ -3123,10 +3406,13 @@ service /api/v1/finance/pengeluaran\-perusahaan on apiListener {
     # POST /api/v1/finance/pengeluaran-perusahaan — create (status PENGAJUAN). created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:PengeluaranCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:PengeluaranPerusahaan created = check services:createPengeluaran(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:PengeluaranPerusahaan created = check services:createPengeluaran(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Pengeluaran berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create pengeluaran");
@@ -3136,10 +3422,13 @@ service /api/v1/finance/pengeluaran\-perusahaan on apiListener {
     # PUT /api/v1/finance/pengeluaran-perusahaan/{id} — update (only PENGAJUAN/REJECTED; resets to PENGAJUAN).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:PengeluaranUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:PengeluaranPerusahaan updated = check services:updatePengeluaran(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:PengeluaranPerusahaan updated = check services:updatePengeluaran(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Pengeluaran berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update pengeluaran");
@@ -3149,10 +3438,13 @@ service /api/v1/finance/pengeluaran\-perusahaan on apiListener {
     # PUT /api/v1/finance/pengeluaran-perusahaan/{id}/approve — approve a PENGAJUAN pengeluaran.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id]/approve(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ApproveRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:PengeluaranPerusahaan approved = check services:approvePengeluaran(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:PengeluaranPerusahaan approved = check services:approvePengeluaran(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, approved, "Pengeluaran berhasil di-approve");
         } on fail error err {
             return errorHttp(err, "Failed to approve pengeluaran");
@@ -3162,10 +3454,13 @@ service /api/v1/finance/pengeluaran\-perusahaan on apiListener {
     # PUT /api/v1/finance/pengeluaran-perusahaan/{id}/reject — reject a PENGAJUAN pengeluaran.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id]/reject(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:RejectRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:PengeluaranPerusahaan rejected = check services:rejectPengeluaran(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:PengeluaranPerusahaan rejected = check services:rejectPengeluaran(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, rejected, "Pengeluaran berhasil di-reject");
         } on fail error err {
             return errorHttp(err, "Failed to reject pengeluaran");
@@ -3174,11 +3469,14 @@ service /api/v1/finance/pengeluaran\-perusahaan on apiListener {
 
     # DELETE /api/v1/finance/pengeluaran-perusahaan/{id} — soft delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deletePengeluaran(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deletePengeluaran(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Pengeluaran berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete pengeluaran");
@@ -3254,10 +3552,13 @@ service /api/v1/finance/saldo\-awal\-kas on apiListener {
     # POST /api/v1/finance/saldo-awal-kas — create (append-only). created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:SaldoAwalKasCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:SaldoAwalKas created = check services:createSaldoAwalKas(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:SaldoAwalKas created = check services:createSaldoAwalKas(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Saldo awal kas berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create saldo awal kas");
@@ -3267,8 +3568,10 @@ service /api/v1/finance/saldo\-awal\-kas on apiListener {
 
 # ===== Master Data — Kategori Finansial Keluar service (`/api/v1/master/kategori-finansial-keluar`) =====
 #
-# CRUD for the category master shared by Pembayaran and Pengeluaran Perusahaan. Not RBAC-gated: there
-# is no dedicated `modul` row for it (like Tags/Jabatan), so it stays behind JWKS + denylist only.
+# CRUD for the category master shared by Pembayaran and Pengeluaran Perusahaan. RBAC-gated on
+# `KATEGORI_FINANSIAL_KELUAR`: SUPER_ADMIN and FINANCE hold full CRUD, every other role is
+# read-only (`can_read` only) so their Pembayaran/Pengeluaran Perusahaan forms can still load this
+# dropdown — see documentation/database/patch_kategori_finansial_keluar_rbac.sql.
 @http:ServiceConfig {
     cors: {
         allowOrigins: config:corsAllowedOrigins,
@@ -3292,8 +3595,8 @@ service /api/v1/finance/saldo\-awal\-kas on apiListener {
     ]
 }
 service /api/v1/master/kategori\-finansial\-keluar on apiListener {
-    // Not RBAC-gated: shared finance category master with no dedicated `modul` row. See README.
-    public function createInterceptors() returns http:Interceptor[] => [tokenDenylistInterceptor];
+    public function createInterceptors() returns http:Interceptor[] =>
+        [tokenDenylistInterceptor, new PermissionInterceptor("KATEGORI_FINANSIAL_KELUAR")];
 
     # GET /api/v1/master/kategori-finansial-keluar — paginated list, optional search + status filter.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
@@ -3322,10 +3625,13 @@ service /api/v1/master/kategori\-finansial\-keluar on apiListener {
     # POST /api/v1/master/kategori-finansial-keluar — create. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KategoriFinansialKeluarCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KategoriFinansialKeluar created = check services:createKategoriFinansialKeluar(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KategoriFinansialKeluar created = check services:createKategoriFinansialKeluar(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Kategori finansial keluar berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create kategori finansial keluar");
@@ -3335,10 +3641,13 @@ service /api/v1/master/kategori\-finansial\-keluar on apiListener {
     # PUT /api/v1/master/kategori-finansial-keluar/{id} — update (this table has no update-audit columns).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:KategoriFinansialKeluarUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:KategoriFinansialKeluar updated = check services:updateKategoriFinansialKeluar(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:KategoriFinansialKeluar updated = check services:updateKategoriFinansialKeluar(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Kategori finansial keluar berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update kategori finansial keluar");
@@ -3347,11 +3656,14 @@ service /api/v1/master/kategori\-finansial\-keluar on apiListener {
 
     # DELETE /api/v1/master/kategori-finansial-keluar/{id} — physical delete (guarded by references).
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteKategoriFinansialKeluar(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteKategoriFinansialKeluar(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Kategori finansial keluar berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete kategori finansial keluar");
@@ -3417,10 +3729,13 @@ service /api/v1/business/target\-sales\-unit on apiListener {
     # POST /api/v1/business/target-sales-unit — create. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TargetSalesUnitCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:TargetSalesUnit created = check services:createTargetSalesUnit(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:TargetSalesUnit created = check services:createTargetSalesUnit(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Target sales unit berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create target sales unit");
@@ -3430,10 +3745,13 @@ service /api/v1/business/target\-sales\-unit on apiListener {
     # PUT /api/v1/business/target-sales-unit/{id} — update. updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:TargetSalesUnitUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:TargetSalesUnit updated = check services:updateTargetSalesUnit(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:TargetSalesUnit updated = check services:updateTargetSalesUnit(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Target sales unit berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update target sales unit");
@@ -3442,11 +3760,14 @@ service /api/v1/business/target\-sales\-unit on apiListener {
 
     # DELETE /api/v1/business/target-sales-unit/{id} — physical delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteTargetSalesUnit(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteTargetSalesUnit(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Target sales unit berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete target sales unit");
@@ -3580,10 +3901,13 @@ service /api/v1/master/resource\-unit on apiListener {
     # POST /api/v1/master/resource-unit — create. created_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function post .(@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ResourceUnitCreateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:ResourceUnit created = check services:createResourceUnit(payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:ResourceUnit created = check services:createResourceUnit(payload, subject, ipAddress);
             return successHttp(http:STATUS_CREATED, created, "Resource unit berhasil dibuat");
         } on fail error err {
             return errorHttp(err, "Failed to create resource unit");
@@ -3593,10 +3917,13 @@ service /api/v1/master/resource\-unit on apiListener {
     # PUT /api/v1/master/resource-unit/{id} — update. updated_by from token `sub`.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
     resource function put [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp,
             @http:Payload models:ResourceUnitUpdateRequest payload) returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            models:ResourceUnit updated = check services:updateResourceUnit(id, payload, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            models:ResourceUnit updated = check services:updateResourceUnit(id, payload, subject, ipAddress);
             return successHttp(http:STATUS_OK, updated, "Resource unit berhasil diperbarui");
         } on fail error err {
             return errorHttp(err, "Failed to update resource unit");
@@ -3605,11 +3932,14 @@ service /api/v1/master/resource\-unit on apiListener {
 
     # DELETE /api/v1/master/resource-unit/{id} — soft delete.
     # + return - the HTTP response, JSON-encoded in the standard ApiResponse envelope
-    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization)
+    resource function delete [int id](@http:Header {name: "Authorization"} string? authorization,
+            @http:Header {name: "X-Forwarded-For"} string? xForwardedFor,
+            @http:Header {name: "X-Real-IP"} string? xRealIp)
             returns http:Response {
         do {
             string subject = check utils:subjectFromAccessToken(authorization);
-            check services:deleteResourceUnit(id, subject);
+            string? ipAddress = utils:resolveClientIp(xForwardedFor, xRealIp);
+            check services:deleteResourceUnit(id, subject, ipAddress);
             return successHttp(http:STATUS_OK, (), "Resource unit berhasil dihapus");
         } on fail error err {
             return errorHttp(err, "Failed to delete resource unit");

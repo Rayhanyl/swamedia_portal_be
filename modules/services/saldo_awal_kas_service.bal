@@ -50,12 +50,12 @@ public function getSaldoAwalKasById(int id) returns models:SaldoAwalKas|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created row, a VALIDATION_ERROR AppError, or an error
-public function createSaldoAwalKas(models:SaldoAwalKasCreateRequest payload, string subject)
+public function createSaldoAwalKas(models:SaldoAwalKasCreateRequest payload, string subject, string? ipAddress = ())
         returns models:SaldoAwalKas|error {
     string tanggal = check validateRequiredDate(payload.tanggal, "Tanggal");
     string? keterangan = normalizeProyekText(payload?.keterangan);
     models:SaldoAwalKas created = check repositories:insertSaldoAwalKas(tanggal, payload.nilai, keterangan, subject);
-    logAudit("saldo_awal_kas", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("saldo_awal_kas", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 

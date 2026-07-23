@@ -58,7 +58,7 @@ public function getResourceUnitById(int id) returns models:ResourceUnit|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created row, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createResourceUnit(models:ResourceUnitCreateRequest payload, string subject)
+public function createResourceUnit(models:ResourceUnitCreateRequest payload, string subject, string? ipAddress = ())
         returns models:ResourceUnit|error {
     int jumlah = payload?.jumlah ?: 0;
     decimal kapasitas = payload?.kapasitasTerpakai ?: 0d;
@@ -81,7 +81,7 @@ public function createResourceUnit(models:ResourceUnitCreateRequest payload, str
     }
 
     models:ResourceUnit created = check repositories:insertResourceUnit(payload.unitId, leadId, jumlah, kapasitas, status, subject);
-    logAudit("resource_unit", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("resource_unit", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -92,7 +92,7 @@ public function createResourceUnit(models:ResourceUnitCreateRequest payload, str
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated row, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateResourceUnit(int id, models:ResourceUnitUpdateRequest payload, string subject)
+public function updateResourceUnit(int id, models:ResourceUnitUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:ResourceUnit|error {
     int jumlah = payload?.jumlah ?: 0;
     decimal kapasitas = payload?.kapasitasTerpakai ?: 0d;
@@ -122,7 +122,7 @@ public function updateResourceUnit(int id, models:ResourceUnitUpdateRequest payl
     if updated is () {
         return utils:notFoundError("Resource unit dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("resource_unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("resource_unit", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -131,7 +131,7 @@ public function updateResourceUnit(int id, models:ResourceUnitUpdateRequest payl
 # + id - the resource_unit id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteResourceUnit(int id, string subject) returns error? {
+public function deleteResourceUnit(int id, string subject, string? ipAddress = ()) returns error? {
     models:ResourceUnit? existing = check repositories:findResourceUnitById(id);
     if existing is () {
         return utils:notFoundError("Resource unit dengan id " + id.toString() + " tidak ditemukan");
@@ -140,7 +140,7 @@ public function deleteResourceUnit(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Resource unit dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("resource_unit", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("resource_unit", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

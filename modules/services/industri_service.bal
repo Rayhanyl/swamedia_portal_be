@@ -53,7 +53,7 @@ public function getIndustriById(int id) returns models:Industri|error {
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created industri, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createIndustri(models:IndustriCreateRequest payload, string subject)
+public function createIndustri(models:IndustriCreateRequest payload, string subject, string? ipAddress = ())
         returns models:Industri|error {
     string kode = payload.kode.trim().toUpperAscii();
     check validateKode(kode);
@@ -67,7 +67,7 @@ public function createIndustri(models:IndustriCreateRequest payload, string subj
     }
 
     models:Industri created = check repositories:insertIndustri(kode, nama, subject);
-    logAudit("industri", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("industri", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -78,7 +78,7 @@ public function createIndustri(models:IndustriCreateRequest payload, string subj
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated industri, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateIndustri(int id, models:IndustriUpdateRequest payload, string subject)
+public function updateIndustri(int id, models:IndustriUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:Industri|error {
     string kode = payload.kode.trim().toUpperAscii();
     check validateKode(kode);
@@ -100,7 +100,7 @@ public function updateIndustri(int id, models:IndustriUpdateRequest payload, str
     if updated is () {
         return utils:notFoundError("Industri dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("industri", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject);
+    logAudit("industri", id.toString(), "UPDATE", existing.toJson(), updated.toJson(), subject, ipAddress);
     return updated;
 }
 
@@ -109,7 +109,7 @@ public function updateIndustri(int id, models:IndustriUpdateRequest payload, str
 # + id - the industri id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND/CONFLICT AppError, or an error
-public function deleteIndustri(int id, string subject) returns error? {
+public function deleteIndustri(int id, string subject, string? ipAddress = ()) returns error? {
     models:Industri? existing = check repositories:findIndustriById(id);
     if existing is () {
         return utils:notFoundError("Industri dengan id " + id.toString() + " tidak ditemukan");
@@ -124,7 +124,7 @@ public function deleteIndustri(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Industri dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("industri", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("industri", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 

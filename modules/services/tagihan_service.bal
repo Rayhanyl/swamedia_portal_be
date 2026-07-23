@@ -79,7 +79,7 @@ public function getTagihanStatusHistory(int id) returns models:TagihanStatusHist
 # + payload - the create request body
 # + subject - the caller's `sub` claim, stored as created_by
 # + return - the created tagihan, a VALIDATION_ERROR/CONFLICT AppError, or an error
-public function createTagihan(models:TagihanCreateRequest payload, string subject) returns models:Tagihan|error {
+public function createTagihan(models:TagihanCreateRequest payload, string subject, string? ipAddress = ()) returns models:Tagihan|error {
     string noTagihan = payload.noTagihan.trim();
     check validateNoTagihan(noTagihan);
     string tanggalTagihan = check validateRequiredDate(payload.tanggalTagihan, "Tanggal tagihan");
@@ -107,7 +107,7 @@ public function createTagihan(models:TagihanCreateRequest payload, string subjec
         }
         return created;
     }
-    logAudit("tagihan", created.id.toString(), "CREATE", (), created.toJson(), subject);
+    logAudit("tagihan", created.id.toString(), "CREATE", (), created.toJson(), subject, ipAddress);
     return created;
 }
 
@@ -117,7 +117,7 @@ public function createTagihan(models:TagihanCreateRequest payload, string subjec
 # + payload - the update request body
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - the updated tagihan, a VALIDATION_ERROR/NOT_FOUND/CONFLICT AppError, or an error
-public function updateTagihan(int id, models:TagihanUpdateRequest payload, string subject)
+public function updateTagihan(int id, models:TagihanUpdateRequest payload, string subject, string? ipAddress = ())
         returns models:Tagihan|error {
     string noTagihan = payload.noTagihan.trim();
     check validateNoTagihan(noTagihan);
@@ -148,7 +148,7 @@ public function updateTagihan(int id, models:TagihanUpdateRequest payload, strin
         return utils:notFoundError("Tagihan dengan id " + id.toString() + " tidak ditemukan");
     }
     models:Tagihan result = check getTagihanById(id);
-    logAudit("tagihan", id.toString(), "UPDATE", existing.toJson(), result.toJson(), subject);
+    logAudit("tagihan", id.toString(), "UPDATE", existing.toJson(), result.toJson(), subject, ipAddress);
     return result;
 }
 
@@ -157,7 +157,7 @@ public function updateTagihan(int id, models:TagihanUpdateRequest payload, strin
 # + id - the tagihan id to delete
 # + subject - the caller's `sub` claim, stored as updated_by
 # + return - (), a NOT_FOUND AppError, or an error
-public function deleteTagihan(int id, string subject) returns error? {
+public function deleteTagihan(int id, string subject, string? ipAddress = ()) returns error? {
     models:Tagihan? existing = check repositories:findTagihanById(id);
     if existing is () {
         return utils:notFoundError("Tagihan dengan id " + id.toString() + " tidak ditemukan");
@@ -166,7 +166,7 @@ public function deleteTagihan(int id, string subject) returns error? {
     if !deleted {
         return utils:notFoundError("Tagihan dengan id " + id.toString() + " tidak ditemukan");
     }
-    logAudit("tagihan", id.toString(), "DELETE", existing.toJson(), (), subject);
+    logAudit("tagihan", id.toString(), "DELETE", existing.toJson(), (), subject, ipAddress);
     return ();
 }
 
